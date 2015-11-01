@@ -243,6 +243,7 @@ int main(void) {
 	// Init SD FAT
 	FCLK_SLOW();
     if (f_mount(&FatFs, "", 1) == FR_OK) {
+    	//for(;;) LPC_GPIO1->DATA ^= (1<<5);		// Red LED
     	can_record = 1;
     	FCLK_LCD();
     	lcd_paint(16, 10, icon_sdok);
@@ -325,7 +326,7 @@ int main(void) {
 		while(!(gbcam_get(0xA000) & 1));	// Could freeze !
 
 		// Auto-exposure (progressive): 128*112*3 (all pixels white) /2 = 21504
-		exposure_diff = ((21504 - mean) >> 7);
+		exposure_diff = ((21504 - mean) >> 9);
 
 		// Cap and alert
 		if ((int32_t)exposure + exposure_diff > MAX_EXPOSURE) {
