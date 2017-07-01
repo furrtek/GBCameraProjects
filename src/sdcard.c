@@ -21,10 +21,10 @@ void spi_init(void) {
 	LPC_SSP->CR0 = 0x0407;
 	LPC_SSP->CR1 = 0x2;				//SSP0 on
 
-	for (i=0; i<8; i++)
+	for (i = 0; i < 8; i++)
 		dummy = LPC_SSP->DR;		//Clear RXFIFO
 
-	return;
+	(void)dummy;
 }
 
 /*

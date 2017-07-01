@@ -6,11 +6,19 @@
  */
 
 #include "LPC13xx.h"
+#include "main.h"
 
 // Microsecond wait using TMR16B0 (1us tick)
 void delay_us(uint16_t delay) {
     LPC_TMR16B0->TC = 0;
-    while(LPC_TMR16B0->TC < delay);
+    while (LPC_TMR16B0->TC < delay);
+}
+
+void read_inputs() {
+	// 00054321: PB5 (11) and PB1~4 (0~3)
+	inputs_prev = inputs_current;
+	inputs_current = (((LPC_GPIO2->DATA >> 7) & 0x10) | (LPC_GPIO3->DATA & 0x0F)) ^ 0x1F;
+	inputs_active = (inputs_current ^ inputs_prev) & inputs_current;
 }
 
 void init_io(void) {
@@ -73,9 +81,4 @@ void init_io(void) {
 	LPC_GPIO1->DATA = 0b100100100000;
 	LPC_GPIO2->DATA = 0b011100000000;
 	LPC_GPIO3->DATA = 0b0000;
-
-	LPC_GPIO2->IS = 0x0000;
-	LPC_GPIO2->IBE = 0x0000;
-	LPC_GPIO2->IEV = 0x0000;
-	LPC_GPIO2->IE = (1<<11);
 }

@@ -8,6 +8,8 @@
 #ifndef GBCAM_H_
 #define GBCAM_H_
 
+uint8_t gbcam_wait_busy();
+uint8_t gbcam_wait_idle();
 void gbcam_address(uint16_t address);
 uint8_t gbcam_get(uint16_t address);
 void gbcam_set(uint16_t address, uint8_t value);

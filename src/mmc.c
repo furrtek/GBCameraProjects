@@ -9,6 +9,7 @@
 #include "diskio.h"
 #include "LPC13xx.h"
 #include "main.h"
+#include "io.h"
 #include "ff.h"
 
 /* Definitions for MMC/SDC command */
@@ -45,7 +46,7 @@ static volatile
 DSTATUS Stat = STA_NOINIT;	/* Disk status */
 
 static volatile
-BYTE Timer1, Timer2;	/* 100Hz decrement timer */
+uint16_t Timer1, Timer2;	/* 100Hz decrement timer */
 
 static
 BYTE CardType;			/* Card type flags */
@@ -101,6 +102,7 @@ uint8_t spi_receivebyte(void) {
 
 void spi_send(const uint8_t *buf, uint16_t length) {
 	uint8_t dummy;
+
 	if (!length) return;
 
 	while (length) {
@@ -111,7 +113,8 @@ void spi_send(const uint8_t *buf, uint16_t length) {
 		length--;
 		buf++;
 	}
-	return;
+
+	(void)dummy;
 }
 
 void spi_receive(uint8_t *buf, uint16_t length) {
@@ -374,11 +377,11 @@ DSTATUS disk_initialize (
 
 	power_on();							/* Force socket power on */
 	FCLK_SLOW();
-	for (n = 100; n; n--) rcvr_spi();	/* 80 dummy clocks */
+	for (n = 200; n; n--) rcvr_spi();	/* 80 dummy clocks */
 
 	ty = 0;
 	if (send_cmd(CMD0, 0) == 1) {			/* Enter Idle state */
-		Timer1 = 100;						/* Initialization timeout of 1000 msec */
+		Timer1 = 10000;						/* Initialization timeout of 1000 msec */
 		if (send_cmd(CMD8, 0x1AA) == 1) {	/* SDHC */
 			for (n = 0; n < 4; n++) ocr[n] = rcvr_spi();		/* Get trailing return value of R7 resp */
 			if (ocr[2] == 0x01 && ocr[3] == 0xAA) {				/* The card can work at vdd range of 2.7-3.6V */
