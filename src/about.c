@@ -1,11 +1,10 @@
 #include "main.h"
-#include "about.h"
-#include "menu.h"
+#include "views.h"
 #include "io.h"
 #include "lcd.h"
 
 void about_view() {
-    lcd_clear(0, 35, 240, 320 - 35, COLOR_BLACK);		// Clear screen to black
+    lcd_clear();
 
 	lcd_print(32, 64, "Hardware", COLOR_GREEN, 1);
 	lcd_print(32, 64+24, "Firmware:", COLOR_GREEN, 1);

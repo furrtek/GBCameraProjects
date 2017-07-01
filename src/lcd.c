@@ -8,6 +8,7 @@
 #include "main.h"
 #include "font.h"
 #include "sdcard.h"
+#include "lcd.h"
 #include "io.h"
 
 void lcd_spifast(uint8_t v) {
@@ -125,7 +126,7 @@ void lcd_locate(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
 
 void lcd_print(uint16_t x, uint16_t y, char * str, uint16_t color, uint8_t large) {
 	uint8_t c, v, data;
-	uint8_t * data_ptr;
+	const unsigned char * data_ptr;
 	uint16_t gradient;
 
 	while (*str) {
@@ -143,11 +144,10 @@ void lcd_print(uint16_t x, uint16_t y, char * str, uint16_t color, uint8_t large
 			for (c = 0; c < 8; c++) {
 				data = *data_ptr;
 				for (v = 0; v < 8; v++) {
-					if (data & (1 << v)) {
+					if (data & (1 << v))
 						lcd_spifast_word(color);
-					} else {
+					else
 						lcd_spifast_word(COLOR_BLACK);
-					}
 				}
 				data_ptr++;
 			}
@@ -175,49 +175,32 @@ void lcd_print(uint16_t x, uint16_t y, char * str, uint16_t color, uint8_t large
 
 		LPC_GPIO0->DATA |= (1<<5);	// LCDCS high
 
-		if (!large)
-			x += 8;
-		else
-			x += 16;
-
+		x += (8 << large);
 		str++;
 	}
 }
 
-void lcd_hline(uint16_t x, uint16_t y, uint16_t l, uint16_t color) {
-	uint16_t c;
+void lcd_fill_common(uint32_t l, uint16_t color) {
+	uint32_t c;
 
-	lcd_locate(x, y, l, 1);
 	lcd_writecommand(0x2C); 		// Write to RAM
 	LPC_GPIO0->DATA |= (1<<7);		// D/C high
 	LPC_GPIO0->DATA &= ~(1<<5);		// LCDCS low
 
-	for (c = 0; c < l; c++) {
-		//xmit_spi(color >> 8);
-		//xmit_spi(color & 0xFF);
-		//lcd_spifast(color >> 8);
-		//lcd_spifast(color & 0xFF);
+	for (c = 0; c < l; c++)
 		lcd_spifast_word(color);
-	}
 
-	LPC_GPIO0->DATA |= (1<<5);	// LCDCS high
+	LPC_GPIO0->DATA |= (1<<5);		// LCDCS high
+}
+
+void lcd_hline(uint16_t x, uint16_t y, uint16_t l, uint16_t color) {
+	lcd_locate(x, y, l, 1);
+	lcd_fill_common(l, color);
 }
 
 void lcd_vline(uint16_t x, uint16_t y, uint16_t l, uint16_t color) {
-	uint16_t c;
-
 	lcd_locate(x, y, 1, l);
-	lcd_writecommand(0x2C); 		// Write to RAM
-	LPC_GPIO0->DATA |= (1<<7);		// D/C high
-	LPC_GPIO0->DATA &= ~(1<<5);		// LCDCS low
-
-	for (c = 0; c < l; c++) {
-		//lcd_spifast(color >> 8);
-		//lcd_spifast(color & 0xFF);
-		lcd_spifast_word(color);
-	}
-
-	LPC_GPIO0->DATA |= (1<<5);	// LCDCS high
+	lcd_fill_common(l, color);
 }
 
 void lcd_paint(uint16_t x, uint16_t y, const uint8_t * bitmap, uint8_t large) {
@@ -248,17 +231,15 @@ void lcd_paint(uint16_t x, uint16_t y, const uint8_t * bitmap, uint8_t large) {
 	for (y = 0; y < (h << large); y++) {
 		for (x = 0; x < (w >> 1); x++) {
 			color = bitmap[line + x];
-			//if (color) {
-				if (!large) {
-					lcd_spifast_word(palette[color >> 4]);
-					lcd_spifast_word(palette[color & 15]);
-				} else {
-					lcd_spifast_word(palette[color >> 4]);
-					lcd_spifast_word(palette[color >> 4]);
-					lcd_spifast_word(palette[color & 15]);
-					lcd_spifast_word(palette[color & 15]);
-				}
-			//}
+			if (!large) {
+				lcd_spifast_word(palette[color >> 4]);
+				lcd_spifast_word(palette[color & 15]);
+			} else {
+				lcd_spifast_word(palette[color >> 4]);
+				lcd_spifast_word(palette[color >> 4]);
+				lcd_spifast_word(palette[color & 15]);
+				lcd_spifast_word(palette[color & 15]);
+			}
 		}
 		if ((y & 1) | !large)
 			line += (w >> 1);
@@ -267,20 +248,9 @@ void lcd_paint(uint16_t x, uint16_t y, const uint8_t * bitmap, uint8_t large) {
 	LPC_GPIO0->DATA |= (1<<5);	// LCDCS high
 }
 
-void lcd_clear(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
-	uint32_t size = w * h;
-	uint32_t c;
-
+void lcd_fill(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
 	lcd_locate(x, y, w, h);
-	lcd_writecommand(0x2C); 		// Write to RAM
-	LPC_GPIO0->DATA |= (1<<7);		// D/C high
-	LPC_GPIO0->DATA &= ~(1<<5);		// LCDCS low
-
-	// Clear
-	for (c = 0; c < size; c++)
-		lcd_spifast_word(color);
-
-	LPC_GPIO0->DATA |= (1<<5);		// LCDCS high
+	lcd_fill_common(w * h, color);
 }
 
 void lcd_preview(uint16_t x, uint16_t y) {
@@ -331,6 +301,10 @@ void lcd_preview(uint16_t x, uint16_t y) {
 	}
 
 	LPC_GPIO0->DATA |= (1<<5);		// LCDCS high
+}
+
+void lcd_clear() {
+	lcd_fill(0, 35, 240, 320 - 35, COLOR_BLACK);
 }
 
 void fade_in() {

@@ -10,23 +10,20 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include "LPC13xx.h"
 #include "main.h"
+#include "views.h"
 #include "gbcam.h"
 #include "sdcard.h"
-#include "integer.h"
 #include "diskio.h"
 #include "ff.h"
 #include "io.h"
 #include "lcd.h"
-#include "menu.h"
 #include "icons.h"
 
-// TODO: Playback of recorded files
+// TODO: Playback of recorded files ?
 // TODO: Brightness/contrast adjustment
 // TODO: File naming ?
 // TODO: Gain setting
-// TODO: More pretty icons, logo ?
 
 // Dithering layout taken from real GB Cam, 0000yyxx (could use nibbles instead)
 //     0   1   2   3
@@ -40,7 +37,12 @@ const uint8_t matrix_layout[16] = { 0x00, 0x0A, 0x08, 0x02,
 									0x04, 0x0E, 0x0C, 0x06,
 									0x01, 0x0B, 0x09, 0x03 };
 
-char file_name[13] = "GBCAM000.BIN";
+void SysTick_Handler(void) {
+	if (systick != 255)
+		systick++;
+
+	rec_timer++;
+}
 
 void ADC_IRQHandler(void) {
 	volatile uint32_t adstat;
@@ -56,7 +58,7 @@ void ADC_IRQHandler(void) {
 		if (write_frame_request)
 			skipped++;
 
-		write_frame_request = 1;
+		write_frame_request = 1;	// This sets the framerate (8192/512 = 16 fps)
 
 		if (audio_fifo_ready < 5)
 			audio_fifo_ready++;		// This should NEVER go over 5 (SD card too slow or stalled ?)
@@ -70,12 +72,6 @@ void ADC_IRQHandler(void) {
 	}
 
     NVIC->ICPR[1] = (1<<17);	// Ack interrupt
-}
-
-void SysTick_Handler(void) {
-	if (systick != 255)
-		systick++;
-	rec_timer++;
 }
 
 int main(void) {
@@ -107,7 +103,7 @@ int main(void) {
     LPC_TMR32B1->PR = 10;			// Prescaler
     LPC_TMR32B1->MCR = 0x0400;		// Reset on match register 3
     LPC_TMR32B1->MR3 = 7200;
-    LPC_TMR32B1->MR0 = 7200 - backlight;		// Inverted brightness (72-50)/72
+    LPC_TMR32B1->MR0 = 7200 - backlight;	// Inverted brightness (72-50)/72
 	LPC_TMR32B1->EMR = 0x30;
 	LPC_TMR32B1->PWMC = 1;
     LPC_TMR32B1->TCR = 1;
@@ -125,11 +121,11 @@ int main(void) {
     lcd_init();
 
     FCLK_LCD();
-    lcd_clear(0, 0, 240, 320, COLOR_BLACK);		// Clear whole screen to black
+    lcd_clear();
 
     //delay_us(10000);				// Software fixing hardware: 3.3V drops hard after backlight is switched on, dirty...
 
-    lcd_clear(0, 0, 240, 32, 0b0110011100000000);
+    lcd_fill(0, 0, 240, 32, 0b0110011100000000);
     lcd_paint(1, 1, logo, 0);
 	lcd_hline(0, 32, 240, 0b0100111100000000);
 	lcd_hline(0, 33, 240, 0b0011010101000000);
@@ -158,7 +154,6 @@ int main(void) {
     	lcd_paint(184, 0, icon_camnok, 1);
 
 	menu_view();
-
 	fade_in();
 
 	while (1) {

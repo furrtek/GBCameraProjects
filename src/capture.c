@@ -1,6 +1,6 @@
+#include <string.h>
 #include "main.h"
-#include "menu.h"
-#include "capture.h"
+#include "views.h"
 #include "icons.h"
 #include "lcd.h"
 #include "io.h"
@@ -15,16 +15,24 @@ void capture_view() {
 							0xA6,
 							0xB9};
 
-    lcd_clear(0, 35, 240, 320 - 35, COLOR_BLACK);		// Clear screen to black
+	memcpy(file_name, "GBCAM000.BIN", 13);
+
+    lcd_clear();
 
 	// Grey backdrop around preview
-	lcd_clear(0, 48, 240, 144, COLOR_GREY);
+    lcd_fill(0, 48, 240, 144, COLOR_GREY);
 
 	// Draw reference lines
 	lcd_hline(56-17, 64+56, 16, COLOR_WHITE);
 	lcd_hline(56+129, 64+56, 16, COLOR_WHITE);
 	lcd_vline(56+64, 64-17, 16, COLOR_WHITE);
 	lcd_vline(56+64, 64+113, 16, COLOR_WHITE);
+
+	if (mode == MODE_PHOTO)
+		lcd_print(32, 244, "Snap !", COLOR_GREEN, 1);
+	else
+		lcd_print(32, 244, "Record", COLOR_GREEN, 1);
+	lcd_print(32, 244+24, "Exit", COLOR_BLUE, 1);
 
     // Compute GB Cam dithering matrix values (see GB Cam ROM)
     for (lev = 0; lev < 3; lev++) {
@@ -36,16 +44,13 @@ void capture_view() {
 			v += a;
 		}
     }
-
-    gbcam_setmatrix(gbcam_matrix);	// Upload matrix to GB Cam
+    gbcam_setmatrix(gbcam_matrix);
 
     exposure = MAX_EXPOSURE / 2;
-
     gbcam_setexposure(exposure);	// Set image sensor exposure value
 
 	//TMR32B0 is used for recording timing (audio/video)
 	//72MHz/8192Hz = 8789 with match at 4 (why not ?) and /2 = 1099
-
 	LPC_TMR32B0->PR = 1099;
 	LPC_TMR32B0->MCR = 2;		// Reset on match 0
 	LPC_TMR32B0->MR0 = 3;		// Count 0~3 (/4)
@@ -65,6 +70,9 @@ void capture_view() {
 	gbcam_set(0xA005, 0x9F);		// Dark level calibration
 
 	prev_expo_status = EXPO_INRANGE;
+    cursor_prev = 1;
+    cursor = 0;
+	recording = REC_IDLE;
 
 	fade_in();
 
@@ -78,50 +86,10 @@ uint8_t hexify(uint8_t d) {
 	return 0x30 + d;
 }
 
-// File format:
-// "GBCC"
-// Vx + 3584 bytes image in GB format (x = frames skipped since last one)
-// Ax + x*512 bytes of 8192Hz 8-bit unsigned audio (x = number of audio frames to follow)
-
-uint8_t newfile(void) {
-	const char header[4] = {'G','B','C','C'};
-	uint16_t br;
-
-	FCLK_FAST();
-	// Find filename and create file
-	fr = f_open(&file, file_name, FA_WRITE | FA_CREATE_NEW);
-    while (fr == FR_EXIST) {
-    	if (file_name[7] < '9') {
-    		file_name[7]++;
-    	} else {
-    		file_name[7] = '0';
-        	if (file_name[6] < '9') {
-        		file_name[6]++;
-        	} else {
-        		file_name[6] = '0';
-            	if (file_name[5] < '9') {
-            		file_name[5]++;
-            	} else {
-            		// TODO: No file available for creation (all 999 already exist)
-            		return 1;
-            	}
-        	}
-    	}
-    	fr = f_open(&file, file_name, FA_WRITE | FA_CREATE_NEW);
-    }
-
-    // Write header
-    fr = f_write(&file, &header, 4, &br);
-    FCLK_LCD();
-
-    return 0;
-}
-
 void capture_loop() {
 	uint16_t c, text_color;
 	char sn_marker[2] = {'A', 0};			// Audio (# of blocks)
 	char im_marker[2] = {'V', 0};			// Video (# of skipped frames since last one)
-	char timestr[9] = "00:00:00";
 	uint8_t data, expo_status;
 	uint16_t luma_acc = 0;
 	int32_t luma_delta;
@@ -129,13 +97,31 @@ void capture_loop() {
 
 	read_inputs();
 
-	if (inputs_active & BTN_A) {
-		if (can_record) {
-			if (recording == REC_IDLE)
-				recording = REC_START;
-			if (recording == REC_WORK)
-				recording = REC_STOP;
+	if (recording == REC_IDLE) {
+		if (inputs_active & BTN_DOWN) {
+			if (cursor < 1)
+				cursor++;
+		} else if (inputs_active & BTN_UP) {
+			if (cursor > 0)
+				cursor--;
+		} else if (inputs_active & BTN_A) {
+			if (cursor == 0) {
+				if (can_record)
+					recording = REC_START;
+			} else if (cursor == 1) {
+				mode = MODE_VIDEO;
+				fade_out(menu_view);
+				return;
+			}
 		}
+	} else if (recording == REC_WORK) {
+		recording = REC_STOP;
+	}
+
+	if (cursor != cursor_prev) {
+		lcd_fill(16, 244 + (cursor_prev * 24), 16, 16, COLOR_BLACK);
+		lcd_print(16, 244 + (cursor * 24), "#", COLOR_WHITE, 1);
+		cursor_prev = cursor;
 	}
 
 	// Read scratchpad
@@ -146,7 +132,7 @@ void capture_loop() {
 	for (c = 0; c < FRAME_SIZE; c++) {
 		data = gbcam_get(0xA100 + c) ^ 0xFF;
 		picture_buffer[c] = data;
-		luma_acc += ((data>>6) & 3)+((data>>4) & 3)+((data>>2) & 3)+(data & 3);
+		luma_acc += ((data>>6) & 3) + ((data>>4) & 3) + ((data>>2) & 3) + (data & 3);
 	}
 
 	// Ask ASIC for capture
@@ -179,18 +165,19 @@ void capture_loop() {
 		text_color = COLOR_GREEN;
 
 	// Display exposure value
-	rbf[0] = hexify((exposure >> 12) & 0xF);
-	rbf[1] = hexify((exposure >> 8) & 0xF);
-	rbf[2] = hexify((exposure >> 4) & 0xF);
-	rbf[3] = hexify(exposure & 0xF);
-	rbf[4] = 0;
-	lcd_print(56, 194, rbf, text_color, 0);
+	str_buffer[0] = hexify((exposure >> 12) & 0xF);
+	str_buffer[1] = hexify((exposure >> 8) & 0xF);
+	str_buffer[2] = hexify((exposure >> 4) & 0xF);
+	str_buffer[3] = hexify(exposure & 0xF);
+	str_buffer[4] = 0;
+	lcd_print(56, 194, str_buffer, text_color, 0);
 
 	if (recording == REC_START) {
 		// Recording start request
-		if (!newfile()) {
-			lcd_print(56, 260, file_name, COLOR_WHITE, 0);
-			lcd_paint(192, 0, icon_rec, 1);	// Display "REC" icon
+		if (!new_file()) {
+			lcd_print(56, 220, file_name, COLOR_WHITE, 0);
+			if (mode == MODE_VIDEO)
+				lcd_paint(192, 36, icon_rec, 1);	// Display "REC" icon
 			LPC_GPIO1->DATA &= ~(1<<5);		// Red LED on
 			write_frame_request = 0;
 			audio_fifo_put = 0;
@@ -215,11 +202,13 @@ void capture_loop() {
 			im_marker[1] = skipped;
 			skipped = 0;
 
+			LPC_GPIO1->DATA &= ~(1<<8);		// Yellow LED on
+
 			f_write(&file, &im_marker, 2, &br);		// Write image marker
 			for (c = 0; c < 7; c++)					// Write image data (FATFS doesn't like writing more than 512 bytes at a time)
 				f_write(&file, &picture_buffer[512 * c], 512, &br);
 
-			if (audio_fifo_ready) {
+			if (audio_fifo_ready && (mode == MODE_VIDEO)) {
 				sn_marker[1] = audio_fifo_ready;
 				audio_fifo_ready = 0;
 
@@ -234,12 +223,17 @@ void capture_loop() {
 
 					sn_marker[1]--;
 				} while (sn_marker[1]);
+			} else if (mode == MODE_PHOTO) {
+				recording = REC_STOP;
 			}
+
+			LPC_GPIO1->DATA |= (1<<8);		// Yellow LED off
+
 			FCLK_LCD();
 		}
 
 		// Update recording time every second
-		if (rec_timer >= 100) {
+		if ((rec_timer >= 100) && (mode == MODE_VIDEO)) {
 			rec_timer -= 100;
 			if (seconds < 59) {
 				seconds++;
@@ -258,20 +252,23 @@ void capture_loop() {
 				}
 			}
 
-			timestr[0] = 0x30 + (hours / 10);
-			timestr[1] = 0x30 + (hours % 10);
-			timestr[3] = 0x30 + (minutes / 10);
-			timestr[4] = 0x30 + (minutes % 10);
-			timestr[6] = 0x30 + (seconds / 10);
-			timestr[7] = 0x30 + (seconds % 10);
+			str_buffer[0] = 0x30 + (hours / 10);
+			str_buffer[1] = 0x30 + (hours % 10);
+			str_buffer[2] = ':';
+			str_buffer[3] = 0x30 + (minutes / 10);
+			str_buffer[4] = 0x30 + (minutes % 10);
+			str_buffer[5] = ':';
+			str_buffer[6] = 0x30 + (seconds / 10);
+			str_buffer[7] = 0x30 + (seconds % 10);
 
-			lcd_print(56, 220, timestr, COLOR_WHITE, 0);
+			lcd_print(56, 220, str_buffer, COLOR_WHITE, 0);
 		}
 	}
 
 	if (recording == REC_STOP) {
 		// Recording stop request
-		lcd_clear(192, 12, 48, 48, COLOR_BLACK);	// Hide "REC" icon
+		if (mode == MODE_VIDEO)
+			lcd_fill(192, 36, 48, 48, COLOR_BLACK);	// Hide "REC" icon
 		LPC_TMR32B0->TCR = 0;
 		LPC_GPIO1->DATA |= (1<<5);		// Red LED off
 		recording = REC_IDLE;
@@ -295,8 +292,6 @@ void capture_loop() {
 
 	// Wait for capture to end
 	gbcam_wait_idle();
-
-	//LPC_GPIO1->DATA |= (1<<8);
 
 	gbcam_setexposure(exposure);
 }

@@ -55,7 +55,7 @@ FATFS FatFs;
 FIL file;
 uint8_t picture_buffer[FRAME_SIZE];
 uint8_t inputs_prev, inputs_current, inputs_active;
-char rbf[32];
+char str_buffer[32];
 uint16_t exposure;
 uint8_t gbcam_matrix[48];		// Dithering/ADC matrix
 FRESULT fr;
@@ -63,7 +63,7 @@ uint8_t rec_timer;
 uint8_t seconds, minutes, hours;
 uint8_t prev_expo_status;
 uint8_t picture_number, picture_number_prev;
-extern char file_name[13];
+char file_name[13];
 uint8_t bank;
 uint16_t bank_offset;
 uint16_t backlight;

@@ -1,19 +1,21 @@
+#include <string.h>
 #include "main.h"
-#include "menu.h"
-#include "sram.h"
+#include "views.h"
 #include "lcd.h"
 #include "io.h"
 #include "sdcard.h"
 #include "gbcam.h"
 
 void sram_view() {
-    lcd_clear(0, 35, 240, 320 - 35, COLOR_BLACK);		// Clear screen to black
+    lcd_clear();
 
 	lcd_print(88, 64, "<  >", COLOR_GREY, 1);
 
 	lcd_print(32, 220, "Save", COLOR_RED, 1);
 	lcd_print(32, 220+24, "Erase", COLOR_GREEN, 1);
 	lcd_print(32, 220+24+24, "Exit", COLOR_BLUE, 1);
+
+	memcpy(file_name, "SDUMP000.BIN", 13);
 
     picture_number_prev = 1;
     picture_number = 0;
@@ -29,6 +31,7 @@ void sram_view() {
 
 void sram_loop() {
 	uint16_t c;
+	uint16_t br;
 
 	systick = 0;
 	while (systick < 2);	// 20ms
@@ -56,7 +59,18 @@ void sram_loop() {
 	if (inputs_active & BTN_A) {
 		if (cursor == 0) {
 			// Save
-			// Todo
+			if (!new_file()) {
+				lcd_print(56, 300, file_name, COLOR_WHITE, 0);
+
+				LPC_GPIO1->DATA &= ~(1<<8);		// Yellow LED on
+
+				for (c = 0; c < 7; c++)			// Write image data (FATFS doesn't like writing more than 512 bytes at a time)
+					f_write(&file, &picture_buffer[512 * c], 512, &br);
+
+				f_close(&file);
+
+				LPC_GPIO1->DATA |= (1<<8);		// Yellow LED off
+			}
 		} else if (cursor == 1) {
 			// Erase
 			gbcam_set(0x4000, bank);		// SRAM bank
@@ -74,12 +88,12 @@ void sram_loop() {
 	}
 
 	if (picture_number != picture_number_prev) {
-		lcd_clear(16, 64, 32, 16, COLOR_BLACK);		// Erase previous picture number
+		lcd_fill(16, 64, 32, 16, COLOR_BLACK);		// Erase previous picture number
 
-		rbf[0] = 0x30 + (picture_number / 10);		// Draw new picture number
-		rbf[1] = 0x30 + (picture_number % 10);
-		rbf[2] = 0;
-		lcd_print(104, 64, rbf, COLOR_WHITE, 1);
+		str_buffer[0] = 0x30 + (picture_number / 10);		// Draw new picture number
+		str_buffer[1] = 0x30 + (picture_number % 10);
+		str_buffer[2] = 0;
+		lcd_print(104, 64, str_buffer, COLOR_WHITE, 1);
 
 		// Read SRAM
 		bank = (picture_number >> 1) + 1;	// SRAM bank
@@ -100,7 +114,7 @@ void sram_loop() {
 	}
 
 	if (cursor != cursor_prev) {
-		lcd_clear(16, 220 + (cursor_prev * 24), 16, 16, COLOR_BLACK);
+		lcd_fill(16, 220 + (cursor_prev * 24), 16, 16, COLOR_BLACK);
 		lcd_print(16, 220 + (cursor * 24), "#", COLOR_WHITE, 1);
 		cursor_prev = cursor;
 	}
