@@ -41,6 +41,9 @@ void SysTick_Handler(void) {
 	if (systick != 255)
 		systick++;
 
+	if (slots_timer)
+		slots_timer--;
+
 	rec_timer++;
 }
 
@@ -71,7 +74,7 @@ void ADC_IRQHandler(void) {
 		audio_fifo_ptr++;
 	}
 
-    NVIC->ICPR[1] = (1<<17);	// Ack interrupt
+    NVIC->ICPR[1] = (1<<17);		// Ack interrupt
 }
 
 int main(void) {
@@ -79,7 +82,7 @@ int main(void) {
     LPC_SYSCON->SYSAHBCLKCTRL = (1<<0) | (1<<1) | (1<<2) | (1<<3) | (1<<4) | (1<<6) |
     							(1<<7) | (1<<8) | (1<<9) | (1<<10) | (1<<11) | (1<<13) | (1<<16);
 
-    SysTick->LOAD = 0x000AFC7F;				// 10ms tick
+    SysTick->LOAD = 0x000AFC7F;		// 10ms tick
     SysTick->VAL = 0;
     SysTick->CTRL = 7;
 
@@ -131,33 +134,46 @@ int main(void) {
 	lcd_hline(0, 33, 240, 0b0011010101000000);
 	lcd_hline(0, 34, 240, 0b0001001110000000);
 
-	// Init SD FAT
-	FCLK_SLOW();
-    if (f_mount(&FatFs, "", 1) == FR_OK) {
-    	//for(;;) LPC_GPIO1->DATA ^= (1<<5);		// Red LED
-    	can_record = 1;
-    	FCLK_LCD();
-    	lcd_paint(218, 0, icon_sdok, 1);
-    } else {
-    	can_record = 0;
-    	FCLK_LCD();
-    	lcd_paint(218, 0, icon_sdnok, 1);
-    }
-
     delay_us(50000);
 
     gbcam_reset();
 
-    if (gbcam_detect())
-    	lcd_paint(184, 0, icon_camok, 1);
-    else
-    	lcd_paint(184, 0, icon_camnok, 1);
+    slots_timer = 100;
+    sd_ok = 0;
+    gbcam_ok = 0;
 
 	menu_view();
 	fade_in();
 
 	while (1) {
 		loop_func();
+
+		// Init SD FAT
+		if (!slots_timer) {
+			slots_timer = 100;
+
+			if (!sd_ok) {
+				FCLK_SLOW();
+				if (f_mount(&FatFs, "", 1) == FR_OK) {
+					sd_ok = 1;
+					FCLK_LCD();
+					lcd_paint(218, 0, icon_sdok, 1);
+				} else {
+					sd_ok = 0;
+					FCLK_LCD();
+					lcd_paint(218, 0, icon_sdnok, 1);
+				}
+			}
+			if (!gbcam_ok) {
+			    if (!gbcam_detect()) {
+			    	gbcam_ok = 1;
+			    	lcd_paint(184, 0, icon_camok, 1);
+			    } else {
+			    	gbcam_ok = 0;
+			    	lcd_paint(184, 0, icon_camnok, 1);
+			    }
+			}
+		}
 	}
 
     return 0 ;

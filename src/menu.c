@@ -8,10 +8,11 @@ void menu_view() {
     lcd_clear();
 
 	lcd_print(32, 96, "Photo", COLOR_RED, 1);
-	lcd_print(32, 96+24, "Video", COLOR_GREEN, 1);
-	lcd_print(32, 96+24+24, "Settings", COLOR_BLUE, 1);
-	lcd_print(32, 96+24+24+24, "SRAM dump", COLOR_YELLOW, 1);
-	lcd_print(32, 96+24+24+24+24, "About", COLOR_WHITE, 1);
+	lcd_print(32, 96+24, "Video", COLOR_YELLOW, 1);
+	lcd_print(32, 96+24+24, "View", COLOR_GREEN, 1);
+	lcd_print(32, 96+24+24+24, "SRAM dump", COLOR_CYAN, 1);
+	lcd_print(32, 96+24+24+24+24, "Settings", COLOR_YELLOW, 1);
+	lcd_print(32, 96+24+24+24+24+24, "About", COLOR_BLUE, 1);
 
     lcd_paint(75, 268, logo_fe, 0);
 	lcd_print(76, 304, FW_STRING, COLOR_GREY, 0);
@@ -31,13 +32,13 @@ void menu_loop() {
 	read_inputs();
 
 	if (inputs_active & BTN_DOWN) {
-		if (cursor == 4)
+		if (cursor == 5)
 			cursor = 0;
 		else
 			cursor++;
 	} else if (inputs_active & BTN_UP) {
 		if (cursor == 0)
-			cursor = 4;
+			cursor = 5;
 		else
 			cursor--;
 	} else if (inputs_active & BTN_A) {
@@ -48,11 +49,14 @@ void menu_loop() {
 			mode = MODE_VIDEO;
 			fade_out(capture_view);
 		} else if (cursor == 2) {
-			mode = MODE_SETTINGS;
-			fade_out(capture_view);
+			//mode = MODE_VIDEO;
+			//fade_out(capture_view);
 		} else if (cursor == 3) {
 			fade_out(sram_view);
 		} else if (cursor == 4) {
+			mode = MODE_SETTINGS;
+			fade_out(capture_view);
+		} else if (cursor == 5) {
 			fade_out(about_view);
 		}
 		return;

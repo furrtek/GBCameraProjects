@@ -106,7 +106,7 @@ void capture_loop() {
 				cursor--;
 		} else if (inputs_active & BTN_A) {
 			if (cursor == 0) {
-				if (can_record)
+				if (gbcam_ok && sd_ok)
 					recording = REC_START;
 			} else if (cursor == 1) {
 				mode = MODE_VIDEO;

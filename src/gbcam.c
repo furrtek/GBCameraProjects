@@ -6,6 +6,7 @@
  */
 
 #include "LPC13xx.h"
+#include "main.h"
 #include "gbcam.h"
 #include "io.h"
 
@@ -69,14 +70,11 @@ uint8_t gbcam_get(uint16_t address) {
 
 	gbcam_address(address);
 
-	LPC_GPIO2->DIR &= ~(0xFF);				// Hi-z
+	LPC_GPIO2->DIR &= ~(0xFF);			// Hi-z
 
-//	if (address >= 0xA000) {
-		LPC_GPIO2->DATA &= ~(1<<9);		// CS low
-		delay_us(1);
-//	}
-
-	LPC_GPIO2->DATA &= ~(1<<10);			// RD low
+	LPC_GPIO2->DATA &= ~(1<<9);			// CS low
+	delay_us(1);
+	LPC_GPIO2->DATA &= ~(1<<10);		// RD low
 
 	__asm("nop");
 	__asm("nop");
@@ -89,14 +87,28 @@ uint8_t gbcam_get(uint16_t address) {
 	__asm("nop");
 	__asm("nop");
 
-	v = LPC_GPIO2->DATA & 0xFF;				// Read data bus
+	v = LPC_GPIO2->DATA & 0xFF;			// Read data bus
 
-	LPC_GPIO2->DATA |= (1<<10);				// RD high
+	LPC_GPIO2->DATA |= (1<<10);			// RD high
+	//delay_us(1);
+	LPC_GPIO2->DATA |= (1<<9);			// CS high
 
-	//if (address >= 0xA000) {
-		delay_us(1);
-		LPC_GPIO2->DATA |= (1<<9);		// CS high
-	//}
+	return v;
+}
+
+uint8_t gbcam_get_rom(uint16_t address) {
+	uint8_t v;
+
+	gbcam_address(address);
+
+	LPC_GPIO2->DATA |= (1<<9);			// CS high
+	LPC_GPIO2->DIR &= ~(0xFF);			// Hi-z
+	LPC_GPIO2->DATA &= ~(1<<10);		// RD low
+
+	delay_us(10);						// ROM is slow :(
+
+	v = LPC_GPIO2->DATA & 0xFF;			// Read data bus
+	LPC_GPIO2->DATA |= (1<<10);			// RD high
 
 	return v;
 }
@@ -123,7 +135,7 @@ void gbcam_set(uint16_t address, uint8_t value) {
 	}
 }
 
-// Returns 1 if GB Cam is detected
+// Returns 0 if GB Cam is detected
 uint8_t gbcam_detect(void) {
 	const char rom_name[14] = "GAMEBOYCAMERA";
 	uint8_t c;
@@ -133,17 +145,12 @@ uint8_t gbcam_detect(void) {
 
 	// Check for ID string in ROM bank 0
 	for (c = 0; c < 13; c++) {
-		if (gbcam_get(c + 0x0134) != rom_name[c])
-			return 0;
+		if (gbcam_get_rom(c + 0x0134) != rom_name[c])
+			return 1;
 	}
 
 	// Check if A000 bit 0 is = 0 (idle)
-	gbcam_set(0x4000, 0x10);			// ASIC registers
-	delay_us(1000);
-	if (gbcam_get(0xA000) & 1)
-		return 0;
-
-	return 1;
+	return gbcam_wait_idle();
 }
 
 void gbcam_reset(void) {

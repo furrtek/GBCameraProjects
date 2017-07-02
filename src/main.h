@@ -17,6 +17,7 @@
 #define COLOR_GREEN 	0b0000011111100000
 #define COLOR_BLUE		0b0000000000011111
 #define COLOR_YELLOW	0b1111111111100000
+#define COLOR_CYAN		0b0000011111111111
 #define COLOR_WHITE 	0b1111111111111111
 #define COLOR_GREY		0b0111101111101111
 #define COLOR_BLACK		0b0000000000000000
@@ -67,6 +68,8 @@ char file_name[13];
 uint8_t bank;
 uint16_t bank_offset;
 uint16_t backlight;
+uint16_t slots_timer;
+uint8_t sd_ok, gbcam_ok;
 
 extern const uint8_t matrix_layout[16];
 
@@ -80,8 +83,5 @@ volatile uint8_t write_frame_request;
 
 // Timing/inputs
 volatile uint8_t skipped;
-
-// Flags
-volatile uint8_t can_record;
 
 #endif /* MAIN_H_ */
