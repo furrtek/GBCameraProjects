@@ -60,6 +60,12 @@ void lcd_writedata(uint8_t c) {
 	LPC_GPIO0->DATA |= (1<<5);		// LCDCS high
 }
 
+uint8_t hexify(uint8_t d) {
+	if (d > 9)
+		d += 7;
+	return 0x30 + d;
+}
+
 const uint8_t lcd_init_data[] = {
 	0xC0, 2, 0x26, 0x04,
 	0xC1, 1, 0x04,
@@ -178,6 +184,19 @@ void lcd_print(uint16_t x, uint16_t y, char * str, uint16_t color, uint8_t large
 		x += (8 << large);
 		str++;
 	}
+}
+
+void lcd_print_time(uint16_t x, uint16_t y) {
+	str_buffer[0] = 0x30 + (hours / 10);
+	str_buffer[1] = 0x30 + (hours % 10);
+	str_buffer[2] = ':';
+	str_buffer[3] = 0x30 + (minutes / 10);
+	str_buffer[4] = 0x30 + (minutes % 10);
+	str_buffer[5] = ':';
+	str_buffer[6] = 0x30 + (seconds / 10);
+	str_buffer[7] = 0x30 + (seconds % 10);
+
+	lcd_print(x, y, str_buffer, COLOR_WHITE, 0);
 }
 
 void lcd_fill_common(uint32_t l, uint16_t color) {

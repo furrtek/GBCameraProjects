@@ -26,7 +26,8 @@
 #define SELECT_CARD_TIMEOUT 9
 #define SET_RELATIVE_ADDR_TIMEOUT 10
 
-uint8_t MMCCmd[6];
+//uint8_t MMCCmd[6];
+extern const char file_header[];
 
 void FCLK_LCD();
 void FCLK_FAST();

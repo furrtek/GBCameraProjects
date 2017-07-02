@@ -2376,7 +2376,7 @@ FRESULT validate (	/* FR_OK(0): The object is valid, !=0: Invalid */
 	if (!fil || !fil->fs || !fil->fs->fs_type || fil->fs->id != fil->id || (disk_status(fil->fs->drv) & STA_NOINIT))
 		return FR_INVALID_OBJECT;
 
-	(fil->fs);		/* Lock file system */
+	//(fil->fs);		/* Lock file system */
 
 	return FR_OK;
 }

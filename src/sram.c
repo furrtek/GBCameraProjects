@@ -15,7 +15,7 @@ void sram_view() {
 	lcd_print(32, 220+24, "Erase", COLOR_GREEN, 1);
 	lcd_print(32, 220+24+24, "Exit", COLOR_BLUE, 1);
 
-	memcpy(file_name, "SDUMP000.BIN", 13);
+	memcpy(file_list[0].file_name, "SDUMP000.BIN", 13);
 
     picture_number_prev = 1;
     picture_number = 0;
@@ -60,7 +60,7 @@ void sram_loop() {
 		if (cursor == 0) {
 			// Save
 			if (!new_file()) {
-				lcd_print(56, 300, file_name, COLOR_WHITE, 0);
+				lcd_print(56, 300, file_list[0].file_name, COLOR_WHITE, 0);
 
 				LPC_GPIO1->DATA &= ~(1<<8);		// Yellow LED on
 

@@ -4,5 +4,7 @@ void capture_loop(void);
 void capture_view(void);
 void menu_loop();
 void menu_view();
+void view_loop(void);
+void view_view(void);
 void sram_loop(void);
 void sram_view(void);

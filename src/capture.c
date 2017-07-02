@@ -15,7 +15,15 @@ void capture_view() {
 							0xA6,
 							0xB9};
 
-	memcpy(file_name, "GBCAM000.BIN", 13);
+	memcpy(file_list[0].file_name, "GBCAM000.BIN", 13);
+
+    // ADC setup
+    LPC_ADC->CR = (16<<8) | (4<<24) | 1;	// 72/16=4.5MHz, start conversion on rising edge of CT32B0_MAT0
+    NVIC->ISER[1] |= (1<<17);				// Enable ADC interrupt
+    LPC_ADC->INTEN = 1;						// Interrupt on conversion done
+
+    // Timer
+	LPC_TMR32B0->MCR = 2;			// Reset on match 0
 
     lcd_clear();
 
@@ -29,7 +37,7 @@ void capture_view() {
 	lcd_vline(56+64, 64+113, 16, COLOR_WHITE);
 
 	if (mode == MODE_PHOTO)
-		lcd_print(32, 244, "Snap !", COLOR_GREEN, 1);
+		lcd_print(32, 244, "Snap", COLOR_GREEN, 1);
 	else
 		lcd_print(32, 244, "Record", COLOR_GREEN, 1);
 	lcd_print(32, 244+24, "Exit", COLOR_BLUE, 1);
@@ -49,14 +57,6 @@ void capture_view() {
     exposure = MAX_EXPOSURE / 2;
     gbcam_setexposure(exposure);	// Set image sensor exposure value
 
-	//TMR32B0 is used for recording timing (audio/video)
-	//72MHz/8192Hz = 8789 with match at 4 (why not ?) and /2 = 1099
-	LPC_TMR32B0->PR = 1099;
-	LPC_TMR32B0->MCR = 2;		// Reset on match 0
-	LPC_TMR32B0->MR0 = 3;		// Count 0~3 (/4)
-	LPC_TMR32B0->EMR = (3<<4);
-	LPC_TMR32B0->TCR = 0;
-
     // Clear GB Cam scratchpad RAM (bank 0, A000~AFFF)
     gbcam_set(0x4000, 0x00);		// SRAM bank 0
     gbcam_set(0x0000, 0x0A);		// Enable SRAM writes
@@ -72,22 +72,15 @@ void capture_view() {
 	prev_expo_status = EXPO_INRANGE;
     cursor_prev = 1;
     cursor = 0;
-	recording = REC_IDLE;
+	state = STATE_IDLE;
 
 	fade_in();
 
 	loop_func = capture_loop;
 }
 
-uint8_t hexify(uint8_t d) {
-	if (d > 9)
-		d += 7;
-
-	return 0x30 + d;
-}
-
 void capture_loop() {
-	uint16_t c, text_color;
+	uint16_t c;
 	char sn_marker[2] = {'A', 0};			// Audio (# of blocks)
 	char im_marker[2] = {'V', 0};			// Video (# of skipped frames since last one)
 	uint8_t data, expo_status;
@@ -97,7 +90,8 @@ void capture_loop() {
 
 	read_inputs();
 
-	if (recording == REC_IDLE) {
+	if (state == STATE_IDLE) {
+		// Menu can only be used in REC_IDLE state
 		if (inputs_active & BTN_DOWN) {
 			if (cursor < 1)
 				cursor++;
@@ -107,15 +101,20 @@ void capture_loop() {
 		} else if (inputs_active & BTN_A) {
 			if (cursor == 0) {
 				if (gbcam_ok && sd_ok)
-					recording = REC_START;
+					state = STATE_START;
 			} else if (cursor == 1) {
-				mode = MODE_VIDEO;
+				// Turn off ADC
+			    LPC_ADC->CR = 0;
+			    NVIC->ICER[1] |= (1<<17);
+			    LPC_ADC->INTEN = 0;
+
 				fade_out(menu_view);
 				return;
 			}
 		}
-	} else if (recording == REC_WORK) {
-		recording = REC_STOP;
+	} else if (state == STATE_REC) {
+		if (inputs_active & BTN_A)
+			state = STATE_STOP;
 	}
 
 	if (cursor != cursor_prev) {
@@ -124,11 +123,9 @@ void capture_loop() {
 		cursor_prev = cursor;
 	}
 
-	// Read scratchpad
+	// Read scratchpad to picture buffer
 	gbcam_set(0x4000, 0x00);	// SRAM bank 0
 	delay_us(2);
-	//LPC_GPIO1->DATA &= ~(1<<5);		// Red LED on DEBUG
-	//LPC_GPIO1->DATA |= (1<<5);		// Red LED off DEBUG
 	for (c = 0; c < FRAME_SIZE; c++) {
 		data = gbcam_get(0xA100 + c) ^ 0xFF;
 		picture_buffer[c] = data;
@@ -158,48 +155,46 @@ void capture_loop() {
 		exposure += luma_delta;
 	}
 
-	// Exposure value is yellow if there's an abrupt lighting change
-	if ((luma_delta > 30) || (luma_delta < -30))
-		text_color = COLOR_YELLOW;
-	else
-		text_color = COLOR_GREEN;
-
 	// Display exposure value
-	str_buffer[0] = hexify((exposure >> 12) & 0xF);
+	/*str_buffer[0] = hexify((exposure >> 12) & 0xF);
 	str_buffer[1] = hexify((exposure >> 8) & 0xF);
 	str_buffer[2] = hexify((exposure >> 4) & 0xF);
 	str_buffer[3] = hexify(exposure & 0xF);
 	str_buffer[4] = 0;
-	lcd_print(56, 194, str_buffer, text_color, 0);
+	lcd_print(56, 194, str_buffer, text_color, 0);*/
 
-	if (recording == REC_START) {
+	if (state == STATE_START) {
 		// Recording start request
 		if (!new_file()) {
-			lcd_print(56, 220, file_name, COLOR_WHITE, 0);
+			lcd_print(56, 220, file_list[0].file_name, COLOR_WHITE, 0);
 			if (mode == MODE_VIDEO)
 				lcd_paint(192, 36, icon_rec, 1);	// Display "REC" icon
 			LPC_GPIO1->DATA &= ~(1<<5);		// Red LED on
-			write_frame_request = 0;
+			frame_tick = 0;
+			video_frame_count = 0;
+			audio_frame_count = 0;
 			audio_fifo_put = 0;
+			audio_fifo_get = 0;
 			audio_fifo_ptr = 0;
 			rec_timer = 0;
 			seconds = 0;
 			minutes = 0;
 			hours = 0;
 			audio_fifo_ready = 0;
-			recording = REC_WORK;
+			state = STATE_REC;
 			LPC_TMR32B0->TCR = 1;
 		}
 	}
 
-	if (recording == REC_WORK) {
+	if (state == STATE_REC) {
 		// Recording
-		if (write_frame_request) {
-			write_frame_request = 0;
+		if (frame_tick) {
+			frame_tick = 0;
 
 			FCLK_FAST();
 
 			im_marker[1] = skipped;
+			video_frame_count += (skipped + 1);
 			skipped = 0;
 
 			LPC_GPIO1->DATA &= ~(1<<8);		// Yellow LED on
@@ -215,6 +210,7 @@ void capture_loop() {
 				f_write(&file, &sn_marker, 2, &br);	// Write audio marker
 				do {								// Write audio data
 					f_write(&file, &audio_fifo[audio_fifo_get], 512, &br);
+					audio_frame_count++;
 
 					if (audio_fifo_get == 5)	// Roll
 						audio_fifo_get = 0;
@@ -224,7 +220,7 @@ void capture_loop() {
 					sn_marker[1]--;
 				} while (sn_marker[1]);
 			} else if (mode == MODE_PHOTO) {
-				recording = REC_STOP;
+				state = STATE_STOP;
 			}
 
 			LPC_GPIO1->DATA |= (1<<8);		// Yellow LED off
@@ -247,31 +243,25 @@ void capture_loop() {
 						hours++;
 					} else {
 						// Recording time exceeded, forgot to turn it off ?
-						recording = REC_STOP;
+						state = STATE_STOP;
 					}
 				}
 			}
 
-			str_buffer[0] = 0x30 + (hours / 10);
-			str_buffer[1] = 0x30 + (hours % 10);
-			str_buffer[2] = ':';
-			str_buffer[3] = 0x30 + (minutes / 10);
-			str_buffer[4] = 0x30 + (minutes % 10);
-			str_buffer[5] = ':';
-			str_buffer[6] = 0x30 + (seconds / 10);
-			str_buffer[7] = 0x30 + (seconds % 10);
-
-			lcd_print(56, 220, str_buffer, COLOR_WHITE, 0);
+			lcd_print_time(56, 228);
 		}
 	}
 
-	if (recording == REC_STOP) {
+	if (state == STATE_STOP) {
 		// Recording stop request
+		LPC_TMR32B0->TCR = 0;
 		if (mode == MODE_VIDEO)
 			lcd_fill(192, 36, 48, 48, COLOR_BLACK);	// Hide "REC" icon
-		LPC_TMR32B0->TCR = 0;
 		LPC_GPIO1->DATA |= (1<<5);		// Red LED off
-		recording = REC_IDLE;
+		state = STATE_IDLE;
+		f_lseek(&file, 4);
+		f_write(&file, &video_frame_count, 4, &br);	// WARNING: This takes skipped frames into account
+		f_write(&file, &audio_frame_count, 4, &br);
 		f_close(&file);
 	}
 

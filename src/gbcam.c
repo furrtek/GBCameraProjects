@@ -10,6 +10,18 @@
 #include "gbcam.h"
 #include "io.h"
 
+// Dithering layout taken from real GB Cam, 0000yyxx (could use nibbles instead)
+//     0   1   2   3
+//   ---------------
+// 0 | A   M   D   P
+// 1 | I   E   L   H
+// 2 | C   O   B   N
+// 3 | K   G   J   F
+const uint8_t matrix_layout[16] = { 0x00, 0x0A, 0x08, 0x02,
+									0x05, 0x0F, 0x0D, 0x07,
+									0x04, 0x0E, 0x0C, 0x06,
+									0x01, 0x0B, 0x09, 0x03 };
+
 uint8_t gbcam_wait_busy() {
 	uint32_t timeout = 100000;
 
@@ -105,7 +117,7 @@ uint8_t gbcam_get_rom(uint16_t address) {
 	LPC_GPIO2->DIR &= ~(0xFF);			// Hi-z
 	LPC_GPIO2->DATA &= ~(1<<10);		// RD low
 
-	delay_us(10);						// ROM is slow :(
+	delay_us(15);						// ROM is slow :(
 
 	v = LPC_GPIO2->DATA & 0xFF;			// Read data bus
 	LPC_GPIO2->DATA |= (1<<10);			// RD high

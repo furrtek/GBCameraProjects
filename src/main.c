@@ -25,18 +25,6 @@
 // TODO: File naming ?
 // TODO: Gain setting
 
-// Dithering layout taken from real GB Cam, 0000yyxx (could use nibbles instead)
-//     0   1   2   3
-//   ---------------
-// 0 | A   M   D   P
-// 1 | I   E   L   H
-// 2 | C   O   B   N
-// 3 | K   G   J   F
-const uint8_t matrix_layout[16] = { 0x00, 0x0A, 0x08, 0x02,
-									0x05, 0x0F, 0x0D, 0x07,
-									0x04, 0x0E, 0x0C, 0x06,
-									0x01, 0x0B, 0x09, 0x03 };
-
 void SysTick_Handler(void) {
 	if (systick != 255)
 		systick++;
@@ -45,6 +33,20 @@ void SysTick_Handler(void) {
 		slots_timer--;
 
 	rec_timer++;
+}
+
+void TIMER32_0_IRQHandler(void) {
+	// Simulates recording timing for playback
+	if (audio_fifo_ptr == 511) {
+		audio_fifo_ptr = 0;
+
+		frame_tick = 1;				// This sets the framerate (8192/512 = 16 fps)
+	} else {
+		audio_fifo_ptr++;
+	}
+
+	LPC_TMR32B0->IR = 1;			// Ack interrupt
+    NVIC->ICPR[1] = (1<<11);		// Ack interrupt
 }
 
 void ADC_IRQHandler(void) {
@@ -58,10 +60,10 @@ void ADC_IRQHandler(void) {
 	if (audio_fifo_ptr == 511) {
 		audio_fifo_ptr = 0;
 
-		if (write_frame_request)
+		if (frame_tick)
 			skipped++;
 
-		write_frame_request = 1;	// This sets the framerate (8192/512 = 16 fps)
+		frame_tick = 1;				// This sets the framerate (8192/512 = 16 fps)
 
 		if (audio_fifo_ready < 5)
 			audio_fifo_ready++;		// This should NEVER go over 5 (SD card too slow or stalled ?)
@@ -100,13 +102,21 @@ int main(void) {
 	LPC_TMR16B1->EMR = 0x30;
 	LPC_TMR16B1->TCR = 1;
 
+	// TMR32B0 is used for recording timing (audio/video)
+	// 72MHz/8192Hz = 8789 with match at 4 (why not ?) and /2 = 1099
+	LPC_TMR32B0->PR = 1099;
+	LPC_TMR32B0->MCR = 2;			// Reset on match 0
+	LPC_TMR32B0->MR0 = 3;			// Count 0~3 (/4)
+	LPC_TMR32B0->EMR = (3<<4);
+	LPC_TMR32B0->TCR = 0;
+
 	backlight = 0;
 
 	// TMR32B1 is used for LCD backlight PWM
     LPC_TMR32B1->PR = 10;			// Prescaler
     LPC_TMR32B1->MCR = 0x0400;		// Reset on match register 3
     LPC_TMR32B1->MR3 = 7200;
-    LPC_TMR32B1->MR0 = 7200 - backlight;	// Inverted brightness (72-50)/72
+    LPC_TMR32B1->MR0 = 7200;		// Inverted brightness (72-x)/72
 	LPC_TMR32B1->EMR = 0x30;
 	LPC_TMR32B1->PWMC = 1;
     LPC_TMR32B1->TCR = 1;
@@ -114,11 +124,6 @@ int main(void) {
     LPC_SYSCON->PDRUNCFG &= ~(1<<4);		// Power to ADC
 
     delay_us(1000);
-
-    // ADC setup
-    LPC_ADC->CR = (16<<8) | (4<<24) | 1;	// 72/16=4.5MHz, start conversion on rising edge of CT32B0_MAT0
-    NVIC->ISER[1] = (1<<17);				// Enable ADC interrupt
-    LPC_ADC->INTEN = 1;						// Interrupt on conversion done
 
 	spi_init();
     lcd_init();
@@ -129,7 +134,7 @@ int main(void) {
     //delay_us(10000);				// Software fixing hardware: 3.3V drops hard after backlight is switched on, dirty...
 
     lcd_fill(0, 0, 240, 32, 0b0110011100000000);
-    lcd_paint(1, 1, logo, 0);
+    lcd_paint(1, 1, logo, 0);		// Useless gradient
 	lcd_hline(0, 32, 240, 0b0100111100000000);
 	lcd_hline(0, 33, 240, 0b0011010101000000);
 	lcd_hline(0, 34, 240, 0b0001001110000000);

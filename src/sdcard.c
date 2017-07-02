@@ -8,6 +8,8 @@
 #include "main.h"
 #include "sdcard.h"
 
+const char file_header[4] = { 'G', 'B', 'C', 'C' };
+
 void spi_init() {
 	uint8_t i, dummy;
 
@@ -30,38 +32,39 @@ void spi_init() {
 // Ax + x*512 bytes of 8192Hz 8-bit unsigned audio (x = number of audio frames to follow)
 
 uint8_t new_file() {
-	const char header[4] = {'G','B','C','C'};
 	uint16_t br;
 
 	FCLK_FAST();
 
 	// Find filename and create file
-	fr = f_open(&file, file_name, FA_WRITE | FA_CREATE_NEW);
+	fr = f_open(&file, file_list[0].file_name, FA_WRITE | FA_CREATE_NEW);
     while (fr == FR_EXIST) {
-    	if (file_name[7] < '9') {
-    		file_name[7]++;
+    	if (file_list[0].file_name[7] < '9') {
+    		file_list[0].file_name[7]++;
     	} else {
-    		file_name[7] = '0';
-        	if (file_name[6] < '9') {
-        		file_name[6]++;
+    		file_list[0].file_name[7] = '0';
+        	if (file_list[0].file_name[6] < '9') {
+        		file_list[0].file_name[6]++;
         	} else {
-        		file_name[6] = '0';
-            	if (file_name[5] < '9') {
-            		file_name[5]++;
+        		file_list[0].file_name[6] = '0';
+            	if (file_list[0].file_name[5] < '9') {
+            		file_list[0].file_name[5]++;
             	} else {
             		// TODO: No file available for creation (all 999 already exist)
             		return 1;
             	}
         	}
     	}
-    	fr = f_open(&file, file_name, FA_WRITE | FA_CREATE_NEW);
+    	fr = f_open(&file, file_list[0].file_name, FA_WRITE | FA_CREATE_NEW);
     }
 
     if (fr != FR_OK)
     	return 1;
 
     // Write header
-    fr = f_write(&file, &header, 4, &br);
+    f_write(&file, &file_header, 4, &br);
+    // Leave space for frame counts
+    f_lseek(&file, 16);
 
     FCLK_LCD();
 
