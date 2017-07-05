@@ -8,6 +8,8 @@
 #ifndef LCD_H_
 #define LCD_H_
 
+#define COLOR565(r, g, b) (((r & 0xF8) << 8) | ((g & 0xFC) << 3) | ((b & 0xF8) >> 3))
+
 void lcd_spifast(uint8_t v);
 void lcd_writecommand(uint8_t c);
 void lcd_writedata(uint8_t c);

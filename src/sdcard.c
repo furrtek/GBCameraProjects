@@ -33,29 +33,30 @@ void spi_init() {
 
 uint8_t new_file() {
 	uint16_t br;
+	char * file_name = file_list[0].file_name;
 
 	FCLK_FAST();
 
 	// Find filename and create file
-	fr = f_open(&file, file_list[0].file_name, FA_WRITE | FA_CREATE_NEW);
+	fr = f_open(&file, file_name, FA_WRITE | FA_CREATE_NEW);
     while (fr == FR_EXIST) {
-    	if (file_list[0].file_name[7] < '9') {
-    		file_list[0].file_name[7]++;
+    	if (file_name[7] < '9') {
+    		file_name[7]++;
     	} else {
-    		file_list[0].file_name[7] = '0';
-        	if (file_list[0].file_name[6] < '9') {
-        		file_list[0].file_name[6]++;
+    		file_name[7] = '0';
+        	if (file_name[6] < '9') {
+        		file_name[6]++;
         	} else {
-        		file_list[0].file_name[6] = '0';
-            	if (file_list[0].file_name[5] < '9') {
-            		file_list[0].file_name[5]++;
+        		file_name[6] = '0';
+            	if (file_name[5] < '9') {
+            		file_name[5]++;
             	} else {
             		// TODO: No file available for creation (all 999 already exist)
             		return 1;
             	}
         	}
     	}
-    	fr = f_open(&file, file_list[0].file_name, FA_WRITE | FA_CREATE_NEW);
+    	fr = f_open(&file, file_name, FA_WRITE | FA_CREATE_NEW);
     }
 
     if (fr != FR_OK)

@@ -20,10 +20,10 @@
 #include "lcd.h"
 #include "icons.h"
 
-// TODO: Playback of recorded files ?
-// TODO: Brightness/contrast adjustment
+// TODO: REC icon fix
+// TODO: lcd_preview doesn't work before going into capture mode
+// TODO: File list only shows 4 files at a time
 // TODO: File naming ?
-// TODO: Gain setting
 
 void SysTick_Handler(void) {
 	if (systick != 255)
@@ -50,15 +50,20 @@ void TIMER32_0_IRQHandler(void) {
 }
 
 void ADC_IRQHandler(void) {
-	volatile uint32_t adstat;
+	uint32_t ad_stat;
+	uint32_t ad_data;
 
-	adstat = LPC_ADC->STAT;
-	(void)adstat;
+	ad_stat = LPC_ADC->STAT;
+	(void)ad_stat;
 
-	audio_fifo[audio_fifo_put][audio_fifo_ptr] = (LPC_ADC->DR0 >> 8) & 0xFF;
+	ad_data = (LPC_ADC->DR0 >> 8) & 0xFF;
+	audio_fifo[audio_fifo_put][audio_fifo_ptr] = ad_data;
+	if (ad_data > ad_max)
+		ad_max = ad_data;			// Store peak level
 
 	if (audio_fifo_ptr == 511) {
 		audio_fifo_ptr = 0;
+		ad_max = 0;
 
 		if (frame_tick)
 			skipped++;
@@ -88,6 +93,8 @@ int main(void) {
     SysTick->VAL = 0;
     SysTick->CTRL = 7;
 
+	backlight = 0;
+
     init_io();
 
 	// TMR16B0 is used for delays (1us tick @ 72MHz, do NOT modify !)
@@ -98,7 +105,7 @@ int main(void) {
 	LPC_TMR16B1->PR = 0;
     LPC_TMR16B1->MCR = 0x0400;		// Reset on match register 3
     LPC_TMR16B1->MR0 = 17;			// Not used ?
-	LPC_TMR16B1->MR3 = 34;			// ~1048576Hz (can go faster if needed) !!!!!!!
+	LPC_TMR16B1->MR3 = 34;			// ~1048576Hz (can go faster if needed)
 	LPC_TMR16B1->EMR = 0x30;
 	LPC_TMR16B1->TCR = 1;
 
@@ -109,8 +116,6 @@ int main(void) {
 	LPC_TMR32B0->MR0 = 3;			// Count 0~3 (/4)
 	LPC_TMR32B0->EMR = (3<<4);
 	LPC_TMR32B0->TCR = 0;
-
-	backlight = 0;
 
 	// TMR32B1 is used for LCD backlight PWM
     LPC_TMR32B1->PR = 10;			// Prescaler

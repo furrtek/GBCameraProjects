@@ -184,6 +184,9 @@ void lcd_print(uint16_t x, uint16_t y, char * str, uint16_t color, uint8_t large
 		x += (8 << large);
 		str++;
 	}
+
+
+	LPC_GPIO0->DATA |= (1<<5);	// LCDCS high
 }
 
 void lcd_print_time(uint16_t x, uint16_t y) {
@@ -274,8 +277,12 @@ void lcd_fill(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
 
 void lcd_preview(uint16_t x, uint16_t y) {
 	uint8_t data_l, data_h, pixel;
-	uint8_t xt, yt, xp;
+	uint8_t xt, yt, xp, p;
 	uint16_t addr, yto;
+
+	luma_acc = 0;
+	for (p = 0; p < 4; p++)
+		histogram[p] = 0;
 
 	lcd_locate(x, y, 128, 112);
 	lcd_writecommand(0x2C); 		// Write to RAM
@@ -283,7 +290,9 @@ void lcd_preview(uint16_t x, uint16_t y) {
 	LPC_GPIO0->DATA &= ~(1<<5);		// LCDCS low
 
 	for (yt = 0; yt < 112; yt++) {
+
 		yto = (yt & 7) + ((yt & 0x78) * 16);
+
 		for (xt = 0; xt < 128; xt++) {
 			// See draft, complete mess: array of tiles to linear LCD format (x inverted)
 			// (xt & 0x78): tile # x
@@ -305,17 +314,11 @@ void lcd_preview(uint16_t x, uint16_t y) {
 			// ------0- -------0	------1- -------1
 			pixel = (((data_h >> xp) << 1) & 2) | ((data_l >> xp) & 1);
 
-			// GameBoy 2bpp to RGB
-			// TODO: Use LUT ?
-			if (pixel == 3) {
-				lcd_spifast_word(0xFFFF);		// 11111111 11111111
-			} else if (pixel == 2) {
-				lcd_spifast_word(0xBDF7);		// 10111101 11110111
-			} else if (pixel == 1) {
-				lcd_spifast_word(0x39E7);		// 00111001 11100111
-			} else {
-				lcd_spifast_word(0x18E3);		// 00011000 11100011
-			}
+			histogram[pixel]++;
+			luma_acc += pixel;
+
+			// 2bpp to RGB
+			lcd_spifast_word(lut_2bpp[pixel]);
 		}
 	}
 

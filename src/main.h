@@ -65,8 +65,15 @@ uint8_t gbcam_matrix[48];			// Dithering/ADC matrix
 extern const uint8_t matrix_layout[16];
 uint8_t seconds, minutes, hours;	// Recording duration counter
 uint8_t prev_expo_status;
-uint8_t picture_number, picture_number_prev;
+uint8_t gain;
+uint16_t prev_gain_bar, prev_exp_bar;
+uint8_t picture_number, prev_picture_number;
+uint16_t lut_2bpp[4];
+uint16_t luma_acc;
+uint8_t ad_max;
+uint16_t histogram[4];
 char file_buffer[4];
+extern uint8_t qlevels[4];
 struct {
 	char file_name[13];
 	uint32_t duration;

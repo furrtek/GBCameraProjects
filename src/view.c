@@ -19,11 +19,15 @@ uint8_t list_files(uint16_t page) {
     if (fr == FR_OK) {
         for (;;) {
         	fr = f_readdir(&dir, &file_info);
-            if (fr != FR_OK || file_info.fname[0] == 0)
+            if (file_info.fname[0] == 0)
             	break;
-            if (!ff) {
+            //if (fr != FR_OK || file_info.fname[0] == 0)
+            //	break;
+            //if (!ff) {
 				if (!(file_info.fattrib & AM_DIR)) {
-					fr = f_open(&file, file_info.fname, FA_READ);
+			        lcd_print(32, 32 + (c << 3), file_info.fname, COLOR_WHITE, 0);
+
+					/*fr = f_open(&file, file_info.fname, FA_READ);
 					if (fr == FR_OK) {
 						// Check file header
 						fr = f_read(&file, file_buffer, 4, &br);
@@ -32,19 +36,24 @@ uint8_t list_files(uint16_t page) {
 							if (file_buffer[c] != file_header[c]) break;
 						if (s == 4) {
 							f_read(&file, &file_list[c].duration, 4, &br);
-							file_list[c].duration *= 625;		// Frame duration (1/16s) to seconds
-							file_list[c].duration /= 10000;
+							if (file_list[c].duration == 1) {
+								file_list[c].duration = 0;			// Picture marker
+							} else {
+								file_list[c].duration *= 625;		// Frame duration (1/16s) to seconds
+								file_list[c].duration /= 10000;
+							}
 							memcpy(&file_list[c].file_name, file_info.fname, 13);
 							c++;
 						}
 						f_close(&file);
 						if (c == 8)
 							break;
-					}
+					}*/
+			        c++;	// DEBUG
 				}
-            } else {
-            	ff--;
-            }
+            //} else {
+            //	ff--;
+            //}
         }
         f_closedir(&dir);
 
@@ -60,6 +69,7 @@ uint8_t list_files(uint16_t page) {
     cursor_max = 0;
 
     // Clear shown file list
+	FCLK_LCD();
     lcd_fill(32, 216, 208, 64, COLOR_BLACK);
 
     // Display file list
@@ -68,7 +78,7 @@ uint8_t list_files(uint16_t page) {
     		break;
         lcd_print(32, 216 + (c * 8), file_list[c].file_name, COLOR_WHITE, 0);
         duration = file_list[c].duration;
-        if (duration == 1) {
+        if (!duration) {
             lcd_print(144, 216 + (c * 8), "PICTURE", COLOR_WHITE, 0);
         } else {
             str_buffer[7] = 0x30 + (duration % 10);
@@ -91,6 +101,8 @@ uint8_t list_files(uint16_t page) {
     	cursor_max--;
 
 	cursor = 0;
+
+	FCLK_FAST();
 
     return 0;
 }
@@ -121,6 +133,9 @@ void view_view() {
 
 void view_loop() {
 	uint16_t br;
+
+	systick = 0;
+	while (systick < 2);	// 20ms
 
 	read_inputs();
 
@@ -164,17 +179,21 @@ void view_loop() {
 
 	if (cursor != cursor_prev) {
 		// Show first frame of file
+		FCLK_FAST();
 		fr = f_open(&file, file_list[cursor].file_name, FA_READ);
 		if (fr == FR_OK) {
 			f_lseek(&file, 16);
-			f_read(&file, file_buffer, 2, &br);		// Read block ID
+			fr = f_read(&file, file_buffer, 2, &br);		// Read block ID
 			if (file_buffer[0] == 'V') {
 				f_read(&file, picture_buffer, FRAME_SIZE, &br);
+				FCLK_LCD();
 				lcd_preview(56, 64);
+				FCLK_FAST();
 			}
 			f_close(&file);
 		}
 
+		FCLK_LCD();
 		lcd_fill(24, 216 + (cursor_prev * 8), 8, 8, COLOR_BLACK);
 		lcd_print(24, 216 + (cursor * 8), "#", COLOR_WHITE, 0);
 		cursor_prev = cursor;
@@ -212,7 +231,9 @@ void view_loop() {
 
 				if (file_buffer[0] == 'V') {
 					f_read(&file, picture_buffer, FRAME_SIZE, &br);
+					FCLK_LCD();
 					lcd_preview(56, 64);
+					FCLK_FAST();
 				} else if (file_buffer[0] == 'A') {
 					f_lseek(&file, f_tell(&file) + (skipped * 512));	// Skip audio
 				} else {
@@ -237,7 +258,9 @@ void view_loop() {
 				}
 			}
 
+			FCLK_LCD();
 			lcd_print_time(88, 180);
+			FCLK_FAST();
 		}
 	}
 

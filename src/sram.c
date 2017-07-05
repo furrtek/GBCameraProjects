@@ -17,7 +17,7 @@ void sram_view() {
 
 	memcpy(file_list[0].file_name, "SDUMP000.BIN", 13);
 
-    picture_number_prev = 1;
+	prev_picture_number = 1;
     picture_number = 0;
     bank = 1;
     bank_offset = 0xA000;
@@ -80,14 +80,14 @@ void sram_loop() {
 		    for (c = 0; c < 0x1000; c++)
 		    	gbcam_set(bank_offset + c, 0xFF);
 
-		    picture_number_prev = picture_number + 1;	// Force refresh
+		    prev_picture_number = picture_number + 1;	// Force refresh
 		} else if (cursor == 2) {
 			fade_out(menu_view);
 		}
 		return;
 	}
 
-	if (picture_number != picture_number_prev) {
+	if (picture_number != prev_picture_number) {
 		lcd_fill(16, 64, 32, 16, COLOR_BLACK);		// Erase previous picture number
 
 		str_buffer[0] = 0x30 + (picture_number / 10);		// Draw new picture number
@@ -108,9 +108,11 @@ void sram_loop() {
 		for (c = 0; c < FRAME_SIZE; c++)
 			picture_buffer[c] = gbcam_get(bank_offset + c) ^ 0xFF;
 
+		FCLK_LCD();
 		lcd_preview(56, 96);
+		FCLK_FAST();
 
-		picture_number_prev = picture_number;
+		prev_picture_number = picture_number;
 	}
 
 	if (cursor != cursor_prev) {

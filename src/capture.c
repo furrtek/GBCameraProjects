@@ -7,13 +7,67 @@
 #include "sdcard.h"
 #include "gbcam.h"
 
+const uint16_t lut_2bpp_grey[4] = {
+	COLOR565(0x00, 0x00, 0x00),
+	COLOR565(0x55, 0x55, 0x55),
+	COLOR565(0xAA, 0xAA, 0xAA),
+	COLOR565(0xFF, 0xFF, 0xFF)
+};
+const uint16_t lut_2bpp_dmg[4] = {
+	COLOR565(0x00, 0x2B, 0x16),
+	COLOR565(0x0A, 0x64, 0x33),
+	COLOR565(0x56, 0xAA, 0x2B),
+	COLOR565(0xB1, 0xC1, 0x00)
+};
+const uint16_t lut_2bpp_cgb[4] = {
+	COLOR565(0x00, 0x00, 0x00),
+	COLOR565(0x00, 0x63, 0xC5),
+	COLOR565(0x7B, 0xFF, 0x31),
+	COLOR565(0xFF, 0xFF, 0xFF)
+};
+const uint16_t * lut_2bpp_list[3] = {
+	lut_2bpp_grey,
+	lut_2bpp_dmg,
+	lut_2bpp_cgb
+};
+
+const uint16_t bar_colors[8] = {
+	COLOR565(0xFF, 0x1F, 0x1F),
+	COLOR565(0xFF, 0x7F, 0x1F),
+	COLOR565(0x7F, 0xFF, 0x1F),
+	COLOR565(0x1F, 0xFF, 0x1F),
+	COLOR565(0x1F, 0xFF, 0x1F),
+	COLOR565(0xFF, 0xFF, 0x1F),
+	COLOR565(0xFF, 0x3F, 0x1F),
+	COLOR565(0xFF, 0x1F, 0x1F)
+};
+
+void load_lut(uint8_t index) {
+	uint8_t c;
+
+	for (c = 0; c < 4; c++)
+		lut_2bpp[c] = *(lut_2bpp_list[index] + c);
+}
+
+void update_gain() {
+	uint16_t c;
+
+	gbcam_set(0x4000, 0x10);		// ASIC registers
+	delay_us(10);
+
+	gbcam_set(0xA001, gain >> 4);	// Sensor gain
+
+	// Display gain bar
+	c = 76 + (gain >> 1);
+	if (c != prev_gain_bar) {
+		lcd_fill(prev_gain_bar, 228+12, 4, 6, COLOR_BLACK);
+		lcd_fill(c, 228+12, 4, 6, COLOR_WHITE);
+	}
+	prev_gain_bar = c;
+}
+
 void capture_view() {
-	uint16_t c, v, a;
-	uint8_t lev, m;
-	uint8_t qlevels[4] = {	0x8F,	// Initial matrix computation values (medium-high contrast)
-							0x98,
-							0xA6,
-							0xB9};
+	uint16_t c;
 
 	memcpy(file_list[0].file_name, "GBCAM000.BIN", 13);
 
@@ -24,6 +78,22 @@ void capture_view() {
 
     // Timer
 	LPC_TMR32B0->MCR = 2;			// Reset on match 0
+
+	// Initial matrix threshold values (medium-high contrast) taken from real GB Cam
+	/*qlevels[0] = 0x8C;
+	qlevels[1] = 0x98;
+	qlevels[2] = 0xAC;
+	qlevels[3] = 0xEB;*/
+	// Better blacks:
+	qlevels[0] = 0x8C + 5;
+	qlevels[1] = 0x98 + 5;
+	qlevels[2] = 0xAC + 5;
+	qlevels[3] = 0xEB + 5;
+
+	gain = 8 << 4;
+
+	// 2bpp gradient values
+	load_lut(0);
 
     lcd_clear();
 
@@ -36,26 +106,25 @@ void capture_view() {
 	lcd_vline(56+64, 64-17, 16, COLOR_WHITE);
 	lcd_vline(56+64, 64+113, 16, COLOR_WHITE);
 
+	// Draw menu
 	if (mode == MODE_PHOTO)
-		lcd_print(32, 244, "Snap", COLOR_GREEN, 1);
+		lcd_print(32, 256, "Snap", COLOR_GREEN, 1);
 	else
-		lcd_print(32, 244, "Record", COLOR_GREEN, 1);
-	lcd_print(32, 244+24, "Exit", COLOR_BLUE, 1);
+		lcd_print(32, 256, "Record", COLOR_GREEN, 1);
+	lcd_print(32, 256+24, "Palette", COLOR_YELLOW, 1);
+	lcd_print(32, 256+24+24, "Exit", COLOR_BLUE, 1);
 
-    // Compute GB Cam dithering matrix values (see GB Cam ROM)
-    for (lev = 0; lev < 3; lev++) {
-    	v = qlevels[lev];
-    	a = (qlevels[lev + 1] - v) << 4;
-    	v = v << 8;
-		for (m = 0; m < 16; m++) {
-			gbcam_matrix[lev + (matrix_layout[m] * 3)] = v >> 8;
-			v += a;
-		}
-    }
-    gbcam_setmatrix(gbcam_matrix);
+	lcd_print(36, 228, "Exp.:", COLOR_WHITE, 0);
+	lcd_print(36, 228+12, "Gain:", COLOR_WHITE, 0);
+	for (c = 0; c < 8; c++) {
+		lcd_fill(76 + (c << 4), 228+6, 16, 2, bar_colors[c]);
+		lcd_fill(76 + (c << 4), 228+12+6, 16, 2, bar_colors[c]);
+	}
+
+    gbcam_setmatrix();
 
     exposure = MAX_EXPOSURE / 2;
-    gbcam_setexposure(exposure);	// Set image sensor exposure value
+    gbcam_setexposure(exposure);
 
     // Clear GB Cam scratchpad RAM (bank 0, A000~AFFF)
     gbcam_set(0x4000, 0x00);		// SRAM bank 0
@@ -63,15 +132,16 @@ void capture_view() {
     for (c = 0xA000; c < 0xB000; c++)
     	gbcam_set(c, 0x00);
 
-	gbcam_set(0x4000, 0x10);		// ASIC registers
-	delay_us(2);
-	gbcam_set(0xA001, 0x08);		// Sensor gain
+    update_gain();
 	gbcam_set(0xA004, 0x46);		// Edge enhance 200%
 	gbcam_set(0xA005, 0x9F);		// Dark level calibration
 
 	prev_expo_status = EXPO_INRANGE;
     cursor_prev = 1;
     cursor = 0;
+    //picture_number = 15;			// Used as contrast value here
+    prev_picture_number = 1;
+    picture_number = 0;
 	state = STATE_IDLE;
 
 	fade_in();
@@ -83,8 +153,8 @@ void capture_loop() {
 	uint16_t c;
 	char sn_marker[2] = {'A', 0};			// Audio (# of blocks)
 	char im_marker[2] = {'V', 0};			// Video (# of skipped frames since last one)
-	uint8_t data, expo_status;
-	uint16_t luma_acc = 0;
+	uint8_t expo_status, p;
+	int16_t histogram_shape;
 	int32_t luma_delta;
 	uint16_t br;
 
@@ -93,16 +163,30 @@ void capture_loop() {
 	if (state == STATE_IDLE) {
 		// Menu can only be used in REC_IDLE state
 		if (inputs_active & BTN_DOWN) {
-			if (cursor < 1)
+			if (cursor < 2)
 				cursor++;
 		} else if (inputs_active & BTN_UP) {
 			if (cursor > 0)
 				cursor--;
+		} else if (inputs_active & BTN_LEFT) {
+			if (picture_number)
+				picture_number--;
+			/*gbcam_setcontrast(picture_number);
+		    gbcam_setmatrix();*/
+			load_lut(picture_number);	// This should only work when cursor == 1
+		} else if (inputs_active & BTN_RIGHT) {
+			if (picture_number < 2)
+				picture_number++;
+			/*if (picture_number < 31)
+				picture_number++;
+			gbcam_setcontrast(picture_number);
+		    gbcam_setmatrix();*/
+			load_lut(picture_number);	// This should only work when cursor == 1
 		} else if (inputs_active & BTN_A) {
 			if (cursor == 0) {
 				if (gbcam_ok && sd_ok)
 					state = STATE_START;
-			} else if (cursor == 1) {
+			} else if (cursor == 2) {
 				// Turn off ADC
 			    LPC_ADC->CR = 0;
 			    NVIC->ICER[1] |= (1<<17);
@@ -118,19 +202,23 @@ void capture_loop() {
 	}
 
 	if (cursor != cursor_prev) {
-		lcd_fill(16, 244 + (cursor_prev * 24), 16, 16, COLOR_BLACK);
-		lcd_print(16, 244 + (cursor * 24), "#", COLOR_WHITE, 1);
+		lcd_fill(16, 256 + (cursor_prev * 24), 16, 16, COLOR_BLACK);
+		lcd_print(16, 256 + (cursor * 24), "#", COLOR_WHITE, 1);
 		cursor_prev = cursor;
+	}
+
+	if (picture_number != prev_picture_number) {
+		str_buffer[0] = 'A' + picture_number;
+		str_buffer[1] = 0;
+		lcd_print(32+128, 256+24, str_buffer, COLOR_YELLOW, 1);
+		prev_picture_number = picture_number;
 	}
 
 	// Read scratchpad to picture buffer
 	gbcam_set(0x4000, 0x00);	// SRAM bank 0
 	delay_us(2);
-	for (c = 0; c < FRAME_SIZE; c++) {
-		data = gbcam_get(0xA100 + c) ^ 0xFF;
-		picture_buffer[c] = data;
-		luma_acc += ((data>>6) & 3) + ((data>>4) & 3) + ((data>>2) & 3) + (data & 3);
-	}
+	for (c = 0; c < FRAME_SIZE; c++)
+		picture_buffer[c] = gbcam_get(0xA100 + c) ^ 0xFF;
 
 	// Ask ASIC for capture
 	gbcam_set(0x4000, 0x10);	// ASIC registers
@@ -155,18 +243,47 @@ void capture_loop() {
 		exposure += luma_delta;
 	}
 
-	// Display exposure value
-	/*str_buffer[0] = hexify((exposure >> 12) & 0xF);
-	str_buffer[1] = hexify((exposure >> 8) & 0xF);
-	str_buffer[2] = hexify((exposure >> 4) & 0xF);
-	str_buffer[3] = hexify(exposure & 0xF);
-	str_buffer[4] = 0;
-	lcd_print(56, 194, str_buffer, text_color, 0);*/
+	// Display exposure bar
+	c = 76 + ((exposure - MIN_EXPOSURE) >> 3);
+	if (c != prev_exp_bar) {
+		lcd_fill(prev_exp_bar, 228, 4, 6, COLOR_BLACK);
+		lcd_fill(c, 228, 4, 6, COLOR_WHITE);
+	}
+	prev_exp_bar = c;
+
+	// Display histogram
+	lcd_fill(208, 148, 14, 28, COLOR_GREY);
+	for (p = 0; p < 4; p++) {
+		c = histogram[p] >> 9;
+		lcd_fill(208 + (p << 2), 148 + (28 - c), 2, c + 1, lut_2bpp[p]);
+	}
+
+	// Display audio level
+	c = (ad_max >= 127) ? (ad_max - 127) >> 1 : 0;
+	lcd_fill(8, 64, 2, 128 - c, COLOR_GREY);
+	lcd_fill(8, 64 + 128 - c, 2, c, COLOR_WHITE);
+
+	// Adjust gain according to histogram shape for best contrast
+	// Ideally max-min should be == 0, meaning there's an even distribution of all pixel values
+	histogram_shape = (histogram[0] + histogram[3]) - (histogram[1] + histogram[2]);	// (Blacks + whites) - (greys)
+	if (histogram_shape > 2000) {
+		if (gain > (3 << 4)) {
+			gain--;
+			update_gain();
+		}
+	} else if (histogram_shape < -2000) {
+		if (gain < (11 << 4)) {
+			gain++;
+			update_gain();
+		}
+	}/* else {
+		gain += (8 - (gain >> 4));
+	}*/
 
 	if (state == STATE_START) {
 		// Recording start request
 		if (!new_file()) {
-			lcd_print(56, 220, file_list[0].file_name, COLOR_WHITE, 0);
+			lcd_print(24, 216, file_list[0].file_name, COLOR_WHITE, 0);
 			if (mode == MODE_VIDEO)
 				lcd_paint(192, 36, icon_rec, 1);	// Display "REC" icon
 			LPC_GPIO1->DATA &= ~(1<<5);		// Red LED on
@@ -248,7 +365,7 @@ void capture_loop() {
 				}
 			}
 
-			lcd_print_time(56, 228);
+			lcd_print_time(128, 216);
 		}
 	}
 
@@ -268,16 +385,24 @@ void capture_loop() {
 	// Exposure alerts
 	if (expo_status != prev_expo_status) {
 		if (expo_status == EXPO_INRANGE)
-			lcd_print(56, 204, "In range  ", COLOR_GREEN, 1);
+			lcd_print(56, 200, "In range  ", COLOR_GREEN, 1);
 		if (expo_status == EXPO_DARK)
-			lcd_print(56, 204, 	"Too dark  ", COLOR_RED, 1);
+			lcd_print(56, 200, 	"Too dark  ", COLOR_RED, 1);
 		if (expo_status == EXPO_BRIGHT)
-			lcd_print(56, 204, 	"Too bright", COLOR_RED, 1);
+			lcd_print(56, 200, 	"Too bright", COLOR_RED, 1);
 	}
 
 	prev_expo_status = expo_status;
 
-	// Show last captured image
+	// Display debug values
+	/*str_buffer[0] = hexify((ad_max >> 12) & 0xF);
+	str_buffer[1] = hexify((ad_max >> 8) & 0xF);
+	str_buffer[2] = hexify((ad_max >> 4) & 0xF);
+	str_buffer[3] = hexify(ad_max & 0xF);
+	str_buffer[4] = 0;
+	lcd_print(208, 180, str_buffer, COLOR_GREY, 0);*/
+
+	// Show last captured image and compute adjustment values
 	lcd_preview(56, 64);
 
 	// Wait for capture to end
