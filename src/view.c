@@ -1,5 +1,15 @@
+/*
+===============================================================================
+ Name        : GBCamcorder
+ Author      : furrtek
+ Version     : 0.2
+ Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
+ Description : GameBoy Camcorder firmware
+===============================================================================
+*/
 #include <string.h>
 #include "main.h"
+#include "colors.h"
 #include "views.h"
 #include "icons.h"
 #include "lcd.h"
@@ -69,7 +79,6 @@ uint8_t list_files(uint16_t page) {
     cursor_max = 0;
 
     // Clear shown file list
-	FCLK_LCD();
     lcd_fill(32, 216, 208, 64, COLOR_BLACK);
 
     // Display file list
@@ -101,8 +110,6 @@ uint8_t list_files(uint16_t page) {
     	cursor_max--;
 
 	cursor = 0;
-
-	FCLK_FAST();
 
     return 0;
 }
@@ -179,21 +186,17 @@ void view_loop() {
 
 	if (cursor != cursor_prev) {
 		// Show first frame of file
-		FCLK_FAST();
 		fr = f_open(&file, file_list[cursor].file_name, FA_READ);
 		if (fr == FR_OK) {
 			f_lseek(&file, 16);
 			fr = f_read(&file, file_buffer, 2, &br);		// Read block ID
 			if (file_buffer[0] == 'V') {
 				f_read(&file, picture_buffer, FRAME_SIZE, &br);
-				FCLK_LCD();
 				lcd_preview(56, 64);
-				FCLK_FAST();
 			}
 			f_close(&file);
 		}
 
-		FCLK_LCD();
 		lcd_fill(24, 216 + (cursor_prev * 8), 8, 8, COLOR_BLACK);
 		lcd_print(24, 216 + (cursor * 8), "#", COLOR_WHITE, 0);
 		cursor_prev = cursor;
@@ -231,9 +234,7 @@ void view_loop() {
 
 				if (file_buffer[0] == 'V') {
 					f_read(&file, picture_buffer, FRAME_SIZE, &br);
-					FCLK_LCD();
 					lcd_preview(56, 64);
-					FCLK_FAST();
 				} else if (file_buffer[0] == 'A') {
 					f_lseek(&file, f_tell(&file) + (skipped * 512));	// Skip audio
 				} else {
@@ -258,9 +259,7 @@ void view_loop() {
 				}
 			}
 
-			FCLK_LCD();
 			lcd_print_time(88, 180);
-			FCLK_FAST();
 		}
 	}
 

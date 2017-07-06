@@ -53,37 +53,27 @@ BYTE CardType;			/* Card type flags */
 
 /**************************************************************************/
 /*! 
-    Set SSP clock to slow (400 KHz)
+    Set SSP clock to slow (<400 KHz)
 */
 /**************************************************************************/
 void FCLK_SLOW()
 {
-	LPC_SYSCON->SSPCLKDIV = 0x20;
-	LPC_SSP->CR0 = 0x0407;
-	LPC_SSP->CPSR = 0x2;
+	LPC_SSP->CR1 = 0x0;				// SSP0 off
+	LPC_SYSCON->SSPCLKDIV = 20;
+	LPC_SSP->CR0 = 0x0407;			// 8bit transfers clk/4
+	LPC_SSP->CR1 = 0x2;				// SSP0 on
 }
 
 /**************************************************************************/
 /*! 
-    Set SSP clock to fast (6.0 MHz)
+    Set SSP clock to fast (18.0 MHz)
 */
 /**************************************************************************/
-void FCLK_LCD()
-{
-	LPC_SSP->CR1 = 0x0;				// SSP0 off
-	LPC_SYSCON->SSPCLKDIV = 0x03;	// 72/2/3 = 12MHz
-	delay_us(10);	// DEBUG
-	LPC_SSP->CR0 = 0x0007;			// SPI full speed
-	LPC_SSP->CR1 = 0x2;				// SSP0 on
-}
-
-
 void FCLK_FAST()
 {
 	LPC_SSP->CR1 = 0x0;				// SSP0 off
-	LPC_SYSCON->SSPCLKDIV = 0x02;	// 2!!! 72/2/2 = 18MHz
-	delay_us(10);	// DEBUG
-	LPC_SSP->CR0 = 0x0007;			// SPI full speed
+	LPC_SYSCON->SSPCLKDIV = 2;		// 72/2/2 = 18MHz
+	LPC_SSP->CR0 = 0x0007;			// 8bit transfers
 	LPC_SSP->CR1 = 0x2;				// SSP0 on
 }
 
@@ -94,42 +84,42 @@ void FCLK_FAST()
 uint8_t spi_receivebyte(void) {
 	uint8_t data;
 
+	while (!(LPC_SSP->SR & 0x02));
 	LPC_SSP->DR = 0xFF;
 	while (LPC_SSP->SR & 0x10);
 	data = LPC_SSP->DR;
+
 	return data;
 }
 
 void spi_send(const uint8_t *buf, uint16_t length) {
-	uint8_t dummy;
+	//uint8_t dummy;
 
-	if (!length) return;
+	//if (!length) return;
 
 	while (length) {
 		while (!(LPC_SSP->SR & 0x02));
 		LPC_SSP->DR = *buf;
 		while ((LPC_SSP->SR & 0x10));
-		dummy = LPC_SSP->DR;
+		//dummy = LPC_SSP->DR;
 		length--;
 		buf++;
 	}
 
-	(void)dummy;
+	//(void)dummy;
 }
 
 void spi_receive(uint8_t *buf, uint16_t length) {
-	uint16_t i;
-
-	for (i=0; i<length; i++) {
+	while (length) {
+	//for (i = 0; i < length; i++) {
 		*buf = spi_receivebyte();
+		length--;
 		buf++;
 	}
-	return;
 }
 
-//#define xmit_spi(dat) (SSPSend((uint8_t*)&(dat), 1))
 void xmit_spi(BYTE dat) {
-	spi_send((uint8_t*) &dat, 1);
+	spi_send((uint8_t*)&dat, 1);
 }
 
 
@@ -137,9 +127,7 @@ void xmit_spi(BYTE dat) {
 /* Receive a byte from MMC via SPI  (Platform dependent)                 */
 /*-----------------------------------------------------------------------*/
 
-static
-BYTE rcvr_spi (void)
-{
+static BYTE rcvr_spi(void) {
     BYTE data = 0;
 
     spi_receive(&data, 1);
@@ -161,16 +149,15 @@ BYTE rcvr_spi (void)
 /* Wait for card ready                                                   */
 /*-----------------------------------------------------------------------*/
 
-static
-BYTE wait_ready (void)
-{
+static BYTE wait_ready(void) {
 	BYTE res;
 
-	Timer2 = 50;	/* Wait for ready in timeout of 500ms */
+	Timer2 = 100;	// Was 50 DEBUG
 	rcvr_spi();
-	do
+	do {
 		res = rcvr_spi();
-	while ((res != 0xFF) && Timer2);
+		Timer2--;
+	} while ((res != 0xFF) && Timer2);
 
 	return res;
 }
@@ -181,9 +168,7 @@ BYTE wait_ready (void)
 /* Deselect the card and release SPI bus                                 */
 /*-----------------------------------------------------------------------*/
 
-static
-void deselect (void)
-{
+static void deselect(void) {
 	LPC_GPIO0->DATA |= (1<<4);
 	spi_receivebyte();
 }
@@ -194,9 +179,7 @@ void deselect (void)
 /* Select the card and wait ready                                        */
 /*-----------------------------------------------------------------------*/
 
-static
-BOOL select (void)	/* TRUE:Successful, FALSE:Timeout */
-{
+static BOOL select(void) {
 	LPC_GPIO0->DATA &= ~(1<<4);
 	return TRUE;
 }
@@ -209,15 +192,15 @@ BOOL select (void)	/* TRUE:Successful, FALSE:Timeout */
 /* When the target system does not support socket power control, there   */
 /* is nothing to do in these functions and chk_power always returns 1.   */
 
-static
+/*static
 void power_on (void)
 {
-}
+}*/
 
-static
+/*static
 void power_off (void)
 {
-}
+}*/
 
 static
 int chk_power(void)		/* Socket power state: 0=off, 1=on */
@@ -231,12 +214,10 @@ int chk_power(void)		/* Socket power state: 0=off, 1=on */
 /* Receive a data packet from MMC                                        */
 /*-----------------------------------------------------------------------*/
 
-static
-BOOL rcvr_datablock (
+static BOOL rcvr_datablock (
 	BYTE *buff,			/* Data buffer to store received data */
 	UINT btr			/* Byte count (must be multiple of 4) */
-)
-{
+) {
 	BYTE token;
 
 	do {
@@ -244,16 +225,15 @@ BOOL rcvr_datablock (
 	} while (token == 0);
 
 	if (token != 0xFE) {
-	Timer1 = 20;
-	do {
-		token = rcvr_spi();
-	} while ((token == 0xFF) && Timer1);
+		Timer1 = 50;	// Was 20 DEBUG
+		do {
+			token = rcvr_spi();
+			Timer1--;
+		} while ((token == 0xFF) && Timer1);
 	}
 
-	if(token != 0xFE) {
-		//if (token == 0x00) for(;;) {}
+	if (token != 0xFE)
 		return FALSE;	/* If not valid data token, return with error */
-	}
 
 	do {							/* Receive the data block into buffer */
 		rcvr_spi_m(buff++);
@@ -274,16 +254,14 @@ BOOL rcvr_datablock (
 /*-----------------------------------------------------------------------*/
 
 #if _READONLY == 0
-static
-BOOL xmit_datablock (
+static BOOL xmit_datablock (
 	const BYTE *buff,	/* 512 byte data block to be transmitted */
 	BYTE token			/* Data/Stop token */
-)
-{
+) {
 	BYTE resp, wc;
 
-
-	if (wait_ready() != 0xFF) return FALSE;
+	if (wait_ready() != 0xFF)
+		return FALSE;
 
 	xmit_spi(token);					/* Xmit data token */
 	if (token != 0xFD) {	/* Is data token */
@@ -313,24 +291,23 @@ BOOL xmit_datablock (
 /* Send a command packet to MMC                                          */
 /*-----------------------------------------------------------------------*/
 
-static
-BYTE send_cmd (
+static BYTE send_cmd (
 	BYTE cmd,		/* Command byte */
 	DWORD arg		/* Argument */
-)
-{
+) {
 	BYTE n, res;
-
 
 	if (cmd & 0x80) {	/* ACMD<n> is the command sequense of CMD55-CMD<n> */
 		cmd &= 0x7F;
 		res = send_cmd(CMD55, 0);
-		if (res > 1) return res;
+		if (res > 1)
+			return res;
 	}
 
 	/* Select the card and wait for ready */
 	deselect();
-	if (!select()) return 0xFF;
+	if (!select())
+		return 0xFF;
 
 	/* Send command packet */
 	xmit_spi(cmd);						/* Start + Command index */
@@ -345,7 +322,7 @@ BYTE send_cmd (
 
 	/* Receive command response */
 	if (cmd == CMD12) rcvr_spi();		/* Skip a stuff byte when stop reading */
-	n = 10;								/* Wait for a valid response in timeout of 10 attempts */
+	n = 100;							/* Wait for a valid response in timeout of 100 attempts */
 	do
 		res = rcvr_spi();
 	while ((res & 0x80) && --n);
@@ -366,28 +343,31 @@ BYTE send_cmd (
 /* Initialize Disk Drive                                                 */
 /*-----------------------------------------------------------------------*/
 
-DSTATUS disk_initialize (
+DSTATUS disk_initialize(
 	BYTE drv		/* Physical drive nmuber (0) */
-)
-{
+) {
 	BYTE n, cmd, ty, ocr[4];
 
 	if (drv) return STA_NOINIT;			/* Supports only single drive */
 	if (Stat & STA_NODISK) return Stat;	/* No card in the socket */
 
-	power_on();							/* Force socket power on */
+	//power_on();							/* Force socket power on */
 	FCLK_SLOW();
-	for (n = 200; n; n--) rcvr_spi();	/* 80 dummy clocks */
+	deselect();
+	for (n = 100; n; n--)
+		rcvr_spi();							/* Dummy clocks */
 
 	ty = 0;
 	if (send_cmd(CMD0, 0) == 1) {			/* Enter Idle state */
 		Timer1 = 10000;						/* Initialization timeout of 1000 msec */
 		if (send_cmd(CMD8, 0x1AA) == 1) {	/* SDHC */
-			for (n = 0; n < 4; n++) ocr[n] = rcvr_spi();		/* Get trailing return value of R7 resp */
+			for (n = 0; n < 4; n++)
+				ocr[n] = rcvr_spi();		/* Get trailing return value of R7 resp */
 			if (ocr[2] == 0x01 && ocr[3] == 0xAA) {				/* The card can work at vdd range of 2.7-3.6V */
 				while (Timer1 && send_cmd(ACMD41, 1UL << 30));	/* Wait for leaving idle state (ACMD41 with HCS bit) */
 				if (Timer1 && send_cmd(CMD58, 0) == 0) {		/* Check CCS bit in the OCR */
-					for (n = 0; n < 4; n++) ocr[n] = rcvr_spi();
+					for (n = 0; n < 4; n++)
+						ocr[n] = rcvr_spi();
 					ty = (ocr[0] & 0x40) ? CT_SD2 | CT_BLOCK : CT_SD2;	/* SDv2 */
 				}
 			}
@@ -402,15 +382,16 @@ DSTATUS disk_initialize (
 				ty = 0;
 		}
 	}
+
 	CardType = ty;
 	deselect();
 
 	if (ty) {			/* Initialization succeded */
 		Stat &= ~STA_NOINIT;		/* Clear STA_NOINIT */
 		FCLK_FAST();
-	} else {			/* Initialization failed */
-		power_off();
-	}
+	}/* else {
+		power_off();			// Initialization failed
+	}*/
 
 	return Stat;
 }
@@ -423,9 +404,10 @@ DSTATUS disk_initialize (
 
 DSTATUS disk_status (
 	BYTE drv		/* Physical drive nmuber (0) */
-)
-{
-	if (drv) return STA_NOINIT;		/* Supports only single drive */
+) {
+	if (drv)
+		return STA_NOINIT;		/* Supports only single drive */
+
 	return Stat;
 }
 
@@ -440,19 +422,16 @@ DRESULT disk_read (
 	BYTE *buff,			/* Pointer to the data buffer to store read data */
 	DWORD sector,		/* Start sector number (LBA) */
 	BYTE count			/* Sector count (1..255) */
-)
-{
+) {
 	if (drv || !count) return RES_PARERR;
 	if (Stat & STA_NOINIT) return RES_NOTRDY;
 
 	if (!(CardType & CT_BLOCK)) sector *= 512;	/* Convert to byte address if needed */
 
 	if (count == 1) {	/* Single block read */
-		if ((send_cmd(CMD17, sector) == 0)
-			&& rcvr_datablock(buff, 512))
+		if ((send_cmd(CMD17, sector) == 0) && rcvr_datablock(buff, 512))
 			count = 0;
-	}
-	else {				/* Multiple block read */
+	} else {				/* Multiple block read */
 		if (send_cmd(CMD18, sector) == 0) {	/* READ_MULTIPLE_BLOCK */
 			do {
 				if (!rcvr_datablock(buff, 512)) break;
@@ -533,12 +512,12 @@ DRESULT disk_ioctl (
 	if (ctrl == CTRL_POWER) {
 		switch (*ptr) {
 		case 0:		/* Sub control code == 0 (POWER_OFF) */
-			if (chk_power())
-				power_off();		/* Power off */
+			//if (chk_power())
+			//	power_off();		/* Power off */
 			res = RES_OK;
 			break;
 		case 1:		/* Sub control code == 1 (POWER_ON) */
-			power_on();				/* Power on */
+			//power_on();				/* Power on */
 			res = RES_OK;
 			break;
 		case 2:		/* Sub control code == 2 (POWER_GET) */

@@ -178,12 +178,15 @@ void gbcam_reset(void) {
 	delay_us(10000);
 }
 
-// TESTING - This is a hardcoded 16 entry LUT @ ROMA:7C20 in the GB Cam ROM
-void gbcam_setcontrast(uint8_t slope) {
-	uint16_t c;
+// This is a hardcoded 16 entry LUT @ ROMA:7C20 in the GB Cam ROM
+// Slope should be 0~31 here
+void gbcam_setcontrast(uint8_t slope, uint8_t offset) {
+	uint16_t c, v;
 
-    for (c = 0; c < 4; c++)
-    	qlevels[c] = (146 - (slope >> 1)) + (c * slope);
+    for (c = 0; c < 4; c++) {
+    	v = offset + (146 - (slope >> 1)) + (c * slope);
+    	qlevels[c] = (v < 256) ? v : 255;
+    }
 }
 
 // Compute GB Cam dithering matrix values (see GB Cam ROM)

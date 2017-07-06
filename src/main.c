@@ -4,13 +4,13 @@
  Author      : furrtek
  Version     : 0.2
  Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
- Description : GameBoy Camera camcorder firmware
+ Description : GameBoy Camcorder firmware
 ===============================================================================
 */
-
 #include <string.h>
 #include <stdlib.h>
 #include "main.h"
+#include "colors.h"
 #include "views.h"
 #include "gbcam.h"
 #include "sdcard.h"
@@ -20,17 +20,19 @@
 #include "lcd.h"
 #include "icons.h"
 
-// TODO: REC icon fix
+// TO CHECK: SDCS and LCDCS pins are open-drain, check why they don't go down to GND when data reg set to 1
+//				SDCS drops to ~2V, which is probably too high to be registered as low -> init bug
+// TODO: merge image conversion code between lcd_preview() and save_bmp()
 // TODO: lcd_preview doesn't work before going into capture mode
-// TODO: File list only shows 4 files at a time
+// TODO: File list stops where it shouldn't, see view.c
 // TODO: File naming ?
 
 void SysTick_Handler(void) {
-	if (systick != 255)
+	if (systick < 255)
 		systick++;
 
-	if (slots_timer)
-		slots_timer--;
+	if (check_timer)
+		check_timer--;
 
 	rec_timer++;
 }
@@ -58,12 +60,12 @@ void ADC_IRQHandler(void) {
 
 	ad_data = (LPC_ADC->DR0 >> 8) & 0xFF;
 	audio_fifo[audio_fifo_put][audio_fifo_ptr] = ad_data;
-	if (ad_data > ad_max)
-		ad_max = ad_data;			// Store peak level
+	if (ad_data > audio_max)
+		audio_max = ad_data;		// Store peak level
 
 	if (audio_fifo_ptr == 511) {
 		audio_fifo_ptr = 0;
-		ad_max = 0;
+		audio_max = 0;
 
 		if (frame_tick)
 			skipped++;
@@ -94,6 +96,12 @@ int main(void) {
     SysTick->CTRL = 7;
 
 	backlight = 0;
+    check_timer = 0;
+    sd_ok = 0;
+    gbcam_ok = 0;
+
+	systick = 0;
+	while (systick < 10);	// 200ms
 
     init_io();
 
@@ -128,29 +136,26 @@ int main(void) {
 
     LPC_SYSCON->PDRUNCFG &= ~(1<<4);		// Power to ADC
 
-    delay_us(1000);
-
 	spi_init();
-    lcd_init();
 
-    FCLK_LCD();
+	// DEBUG
+    /*delay_us(50000);
+	for (;;) {
+		//f_mount(&FatFs, "", 1);
+		//delay_us(50000);
+	}*/
+
+    lcd_init();
+	FCLK_FAST();
     lcd_clear();
 
-    //delay_us(10000);				// Software fixing hardware: 3.3V drops hard after backlight is switched on, dirty...
-
     lcd_fill(0, 0, 240, 32, 0b0110011100000000);
-    lcd_paint(1, 1, logo, 0);		// Useless gradient
-	lcd_hline(0, 32, 240, 0b0100111100000000);
+    lcd_paint(1, 1, logo, 0);
+	lcd_hline(0, 32, 240, 0b0100111100000000);	// Useless gradient
 	lcd_hline(0, 33, 240, 0b0011010101000000);
 	lcd_hline(0, 34, 240, 0b0001001110000000);
 
-    delay_us(50000);
-
     gbcam_reset();
-
-    slots_timer = 100;
-    sd_ok = 0;
-    gbcam_ok = 0;
 
 	menu_view();
 	fade_in();
@@ -158,22 +163,26 @@ int main(void) {
 	while (1) {
 		loop_func();
 
-		// Init SD FAT
-		if (!slots_timer) {
-			slots_timer = 100;
+		if (!check_timer) {
+			check_timer = 100;		// 1s
 
 			if (!sd_ok) {
 				FCLK_SLOW();
-				if (f_mount(&FatFs, "", 1) == FR_OK) {
+				if ((fr = f_mount(&FatFs, "", 1)) == FR_OK) {
 					sd_ok = 1;
-					FCLK_LCD();
+					FCLK_FAST();
 					lcd_paint(218, 0, icon_sdok, 1);
 				} else {
 					sd_ok = 0;
-					FCLK_LCD();
+					FCLK_FAST();
 					lcd_paint(218, 0, icon_sdnok, 1);
+					str_buffer[0] = hexify((fr >> 4) & 15);
+					str_buffer[1] = hexify(fr & 15);
+					str_buffer[2] = 0;
+					lcd_print(0, 0, str_buffer, COLOR_WHITE, 1);
 				}
 			}
+
 			if (!gbcam_ok) {
 			    if (!gbcam_detect()) {
 			    	gbcam_ok = 1;

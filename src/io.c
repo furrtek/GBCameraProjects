@@ -1,9 +1,12 @@
 /*
- * io.c
- *
- *  Created on: 12 oct. 2015
- *      Author: furrtek
- */
+===============================================================================
+ Name        : GBCamcorder
+ Author      : furrtek
+ Version     : 0.2
+ Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
+ Description : GameBoy Camcorder firmware
+===============================================================================
+*/
 
 #include "LPC13xx.h"
 #include "main.h"

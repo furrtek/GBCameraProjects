@@ -1,5 +1,16 @@
+/*
+===============================================================================
+ Name        : GBCamcorder
+ Author      : furrtek
+ Version     : 0.2
+ Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
+ Description : GameBoy Camcorder firmware
+===============================================================================
+*/
+
 #include <string.h>
 #include "main.h"
+#include "colors.h"
 #include "views.h"
 #include "lcd.h"
 #include "io.h"
@@ -15,7 +26,7 @@ void sram_view() {
 	lcd_print(32, 220+24, "Erase", COLOR_GREEN, 1);
 	lcd_print(32, 220+24+24, "Exit", COLOR_BLUE, 1);
 
-	memcpy(file_list[0].file_name, "SDUMP000.BIN", 13);
+	memcpy(file_list[0].file_name, "SDUMP000.BMP", 13);
 
 	prev_picture_number = 1;
     picture_number = 0;
@@ -64,6 +75,7 @@ void sram_loop() {
 
 				LPC_GPIO1->DATA &= ~(1<<8);		// Yellow LED on
 
+				f_write(&file, &bmp_header, sizeof(bmp_header), &br);
 				for (c = 0; c < 7; c++)			// Write image data (FATFS doesn't like writing more than 512 bytes at a time)
 					f_write(&file, &picture_buffer[512 * c], 512, &br);
 
@@ -108,9 +120,7 @@ void sram_loop() {
 		for (c = 0; c < FRAME_SIZE; c++)
 			picture_buffer[c] = gbcam_get(bank_offset + c) ^ 0xFF;
 
-		FCLK_LCD();
 		lcd_preview(56, 96);
-		FCLK_FAST();
 
 		prev_picture_number = picture_number;
 	}

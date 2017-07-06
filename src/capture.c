@@ -1,3 +1,12 @@
+/*
+===============================================================================
+ Name        : GBCamcorder
+ Author      : furrtek
+ Version     : 0.2
+ Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
+ Description : GameBoy Camcorder firmware
+===============================================================================
+*/
 #include <string.h>
 #include "main.h"
 #include "views.h"
@@ -5,44 +14,10 @@
 #include "lcd.h"
 #include "io.h"
 #include "sdcard.h"
+#include "colors.h"
 #include "gbcam.h"
 
-const uint16_t lut_2bpp_grey[4] = {
-	COLOR565(0x00, 0x00, 0x00),
-	COLOR565(0x55, 0x55, 0x55),
-	COLOR565(0xAA, 0xAA, 0xAA),
-	COLOR565(0xFF, 0xFF, 0xFF)
-};
-const uint16_t lut_2bpp_dmg[4] = {
-	COLOR565(0x00, 0x2B, 0x16),
-	COLOR565(0x0A, 0x64, 0x33),
-	COLOR565(0x56, 0xAA, 0x2B),
-	COLOR565(0xB1, 0xC1, 0x00)
-};
-const uint16_t lut_2bpp_cgb[4] = {
-	COLOR565(0x00, 0x00, 0x00),
-	COLOR565(0x00, 0x63, 0xC5),
-	COLOR565(0x7B, 0xFF, 0x31),
-	COLOR565(0xFF, 0xFF, 0xFF)
-};
-const uint16_t * lut_2bpp_list[3] = {
-	lut_2bpp_grey,
-	lut_2bpp_dmg,
-	lut_2bpp_cgb
-};
-
-const uint16_t bar_colors[8] = {
-	COLOR565(0xFF, 0x1F, 0x1F),
-	COLOR565(0xFF, 0x7F, 0x1F),
-	COLOR565(0x7F, 0xFF, 0x1F),
-	COLOR565(0x1F, 0xFF, 0x1F),
-	COLOR565(0x1F, 0xFF, 0x1F),
-	COLOR565(0xFF, 0xFF, 0x1F),
-	COLOR565(0xFF, 0x3F, 0x1F),
-	COLOR565(0xFF, 0x1F, 0x1F)
-};
-
-void load_lut(uint8_t index) {
+void load_palette(uint8_t index) {
 	uint8_t c;
 
 	for (c = 0; c < 4; c++)
@@ -84,16 +59,12 @@ void capture_view() {
 	qlevels[1] = 0x98;
 	qlevels[2] = 0xAC;
 	qlevels[3] = 0xEB;*/
-	// Better blacks:
-	qlevels[0] = 0x8C + 5;
-	qlevels[1] = 0x98 + 5;
-	qlevels[2] = 0xAC + 5;
-	qlevels[3] = 0xEB + 5;
+	gbcam_setcontrast(16, 0);
 
 	gain = 8 << 4;
 
 	// 2bpp gradient values
-	load_lut(0);
+	load_palette(0);
 
     lcd_clear();
 
@@ -134,7 +105,7 @@ void capture_view() {
 
     update_gain();
 	gbcam_set(0xA004, 0x46);		// Edge enhance 200%
-	gbcam_set(0xA005, 0x9F);		// Dark level calibration
+	gbcam_set(0xA005, 0x9F);		// Dark level calibration 9F TESTING
 
 	prev_expo_status = EXPO_INRANGE;
     cursor_prev = 1;
@@ -173,7 +144,7 @@ void capture_loop() {
 				picture_number--;
 			/*gbcam_setcontrast(picture_number);
 		    gbcam_setmatrix();*/
-			load_lut(picture_number);	// This should only work when cursor == 1
+			load_palette(picture_number);	// This should only work when cursor == 1
 		} else if (inputs_active & BTN_RIGHT) {
 			if (picture_number < 2)
 				picture_number++;
@@ -181,7 +152,7 @@ void capture_loop() {
 				picture_number++;
 			gbcam_setcontrast(picture_number);
 		    gbcam_setmatrix();*/
-			load_lut(picture_number);	// This should only work when cursor == 1
+			load_palette(picture_number);	// This should only work when cursor == 1
 		} else if (inputs_active & BTN_A) {
 			if (cursor == 0) {
 				if (gbcam_ok && sd_ok)
@@ -259,7 +230,7 @@ void capture_loop() {
 	}
 
 	// Display audio level
-	c = (ad_max >= 127) ? (ad_max - 127) >> 1 : 0;
+	c = (audio_max >= 127) ? (audio_max - 127) >> 1 : 0;
 	lcd_fill(8, 64, 2, 128 - c, COLOR_GREY);
 	lcd_fill(8, 64 + 128 - c, 2, c, COLOR_WHITE);
 
@@ -283,10 +254,16 @@ void capture_loop() {
 	if (state == STATE_START) {
 		// Recording start request
 		if (!new_file()) {
+		    // Write header
+		    f_write(&file, &file_header, 4, &br);
+		    // Leave space for frame counts
+		    f_lseek(&file, 16);
+
 			lcd_print(24, 216, file_list[0].file_name, COLOR_WHITE, 0);
 			if (mode == MODE_VIDEO)
-				lcd_paint(192, 36, icon_rec, 1);	// Display "REC" icon
+				lcd_paint(192, 64, icon_rec, 1);	// Display "REC" icon
 			LPC_GPIO1->DATA &= ~(1<<5);		// Red LED on
+
 			frame_tick = 0;
 			video_frame_count = 0;
 			audio_frame_count = 0;
@@ -298,6 +275,7 @@ void capture_loop() {
 			minutes = 0;
 			hours = 0;
 			audio_fifo_ready = 0;
+
 			state = STATE_REC;
 			LPC_TMR32B0->TCR = 1;
 		}
@@ -341,8 +319,6 @@ void capture_loop() {
 			}
 
 			LPC_GPIO1->DATA |= (1<<8);		// Yellow LED off
-
-			FCLK_LCD();
 		}
 
 		// Update recording time every second
@@ -373,7 +349,7 @@ void capture_loop() {
 		// Recording stop request
 		LPC_TMR32B0->TCR = 0;
 		if (mode == MODE_VIDEO)
-			lcd_fill(192, 36, 48, 48, COLOR_BLACK);	// Hide "REC" icon
+			lcd_fill(192, 64, 32, 32, COLOR_GREY);	// Hide "REC" icon
 		LPC_GPIO1->DATA |= (1<<5);		// Red LED off
 		state = STATE_IDLE;
 		f_lseek(&file, 4);

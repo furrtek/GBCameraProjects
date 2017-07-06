@@ -1,61 +1,65 @@
 /*
- * lcd.c
- *
- *  Created on: 12 oct. 2015
- *      Author: furrtek
- */
-
+===============================================================================
+ Name        : GBCamcorder
+ Author      : furrtek
+ Version     : 0.2
+ Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
+ Description : GameBoy Camcorder firmware
+===============================================================================
+*/
 #include "main.h"
 #include "font.h"
+#include "colors.h"
 #include "sdcard.h"
 #include "lcd.h"
 #include "io.h"
 
-void lcd_spifast(uint8_t v) {
-	uint8_t dummy;
+void lcd_write_byte(uint8_t v) {
+	//uint8_t dummy;
+
+	LPC_SSP->CR0 = 0x0007;			// 8bit transfers
 
 	while (!(LPC_SSP->SR & 0x02));
 	LPC_SSP->DR = v;
 	while ((LPC_SSP->SR & 0x10));
-	dummy = LPC_SSP->DR;
+	//dummy = LPC_SSP->DR;
 
-	(void)dummy;
+	//(void)dummy;
 }
 
-void lcd_spifast_word(uint16_t v) {
-	uint8_t dummy;
+void lcd_write_word(uint16_t v) {
+	//uint8_t dummy;
+
+	LPC_SSP->CR0 = 0x000F;			// 16bit transfers
 
 	while (!(LPC_SSP->SR & 0x02));
-	LPC_SSP->DR = (v >> 8);
+	LPC_SSP->DR = v;
 	while ((LPC_SSP->SR & 0x10));
-	dummy = LPC_SSP->DR;
+	//dummy = LPC_SSP->DR;
 
-	__asm("nop");
-
-	while (!(LPC_SSP->SR & 0x02));
-	LPC_SSP->DR = (v & 0xFF);
-	while ((LPC_SSP->SR & 0x10));
-	dummy = LPC_SSP->DR;
-
-	(void)dummy;
+	//(void)dummy;
 }
 
 void lcd_writecommand(uint8_t c) {
+	LPC_SSP->CR0 = 0x0007;			// 8bit transfers
+
 	LPC_GPIO0->DATA &= ~(1<<7);		// D/C low
 	LPC_GPIO0->DATA &= ~(1<<10);	// CLK low
 	LPC_GPIO0->DATA &= ~(1<<5);		// LCDCS low
 
-	xmit_spi(c);
+	lcd_write_byte(c);
 
 	LPC_GPIO0->DATA |= (1<<5);		// LCDCS high
 }
 
 void lcd_writedata(uint8_t c) {
+	LPC_SSP->CR0 = 0x0007;			// 8bit transfers
+
 	LPC_GPIO0->DATA |= (1<<7);		// D/C high
 	LPC_GPIO0->DATA &= ~(1<<10);	// CLK low
 	LPC_GPIO0->DATA &= ~(1<<5);		// LCDCS low
 
-	xmit_spi(c);
+	lcd_write_byte(c);
 
 	LPC_GPIO0->DATA |= (1<<5);		// LCDCS high
 }
@@ -151,9 +155,9 @@ void lcd_print(uint16_t x, uint16_t y, char * str, uint16_t color, uint8_t large
 				data = *data_ptr;
 				for (v = 0; v < 8; v++) {
 					if (data & (1 << v))
-						lcd_spifast_word(color);
+						lcd_write_word(color);
 					else
-						lcd_spifast_word(COLOR_BLACK);
+						lcd_write_word(COLOR_BLACK);
 				}
 				data_ptr++;
 			}
@@ -163,11 +167,11 @@ void lcd_print(uint16_t x, uint16_t y, char * str, uint16_t color, uint8_t large
 				data = *data_ptr;
 				for (v = 0; v < 8; v++) {
 					if (data & (1 << v)) {
-						lcd_spifast_word(color | gradient);
-						lcd_spifast_word(color | gradient);
+						lcd_write_word(color | gradient);
+						lcd_write_word(color | gradient);
 					} else {
-						lcd_spifast_word(COLOR_BLACK);
-						lcd_spifast_word(COLOR_BLACK);
+						lcd_write_word(COLOR_BLACK);
+						lcd_write_word(COLOR_BLACK);
 					}
 				}
 
@@ -185,8 +189,7 @@ void lcd_print(uint16_t x, uint16_t y, char * str, uint16_t color, uint8_t large
 		str++;
 	}
 
-
-	LPC_GPIO0->DATA |= (1<<5);	// LCDCS high
+	//LPC_GPIO0->DATA |= (1<<5);	// LCDCS high
 }
 
 void lcd_print_time(uint16_t x, uint16_t y) {
@@ -210,7 +213,7 @@ void lcd_fill_common(uint32_t l, uint16_t color) {
 	LPC_GPIO0->DATA &= ~(1<<5);		// LCDCS low
 
 	for (c = 0; c < l; c++)
-		lcd_spifast_word(color);
+		lcd_write_word(color);
 
 	LPC_GPIO0->DATA |= (1<<5);		// LCDCS high
 }
@@ -249,22 +252,23 @@ void lcd_paint(uint16_t x, uint16_t y, const uint8_t * bitmap, uint8_t large) {
 	bitmap += 16;	// Skip palette
 
 	// Draw bitmap
+	w >>= 1;
 	line = 0;
 	for (y = 0; y < (h << large); y++) {
-		for (x = 0; x < (w >> 1); x++) {
+		for (x = 0; x < w; x++) {
 			color = bitmap[line + x];
 			if (!large) {
-				lcd_spifast_word(palette[color >> 4]);
-				lcd_spifast_word(palette[color & 15]);
+				lcd_write_word(palette[color >> 4]);
+				lcd_write_word(palette[color & 15]);
 			} else {
-				lcd_spifast_word(palette[color >> 4]);
-				lcd_spifast_word(palette[color >> 4]);
-				lcd_spifast_word(palette[color & 15]);
-				lcd_spifast_word(palette[color & 15]);
+				lcd_write_word(palette[color >> 4]);
+				lcd_write_word(palette[color >> 4]);
+				lcd_write_word(palette[color & 15]);
+				lcd_write_word(palette[color & 15]);
 			}
 		}
 		if ((y & 1) | !large)
-			line += (w >> 1);
+			line += w;
 	}
 
 	LPC_GPIO0->DATA |= (1<<5);	// LCDCS high
@@ -318,7 +322,7 @@ void lcd_preview(uint16_t x, uint16_t y) {
 			luma_acc += pixel;
 
 			// 2bpp to RGB
-			lcd_spifast_word(lut_2bpp[pixel]);
+			lcd_write_word(lut_2bpp[pixel]);
 		}
 	}
 
