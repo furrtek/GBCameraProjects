@@ -13,7 +13,7 @@
 #include "LPC13xx.h"
 #include "ff.h"
 
-#define FW_STRING "FW 05072017"
+#define FW_STRING "FW 01082017"
 
 // Button bit masks
 #define BTN_UP 1
@@ -58,6 +58,8 @@ struct {
 	char file_name[13];
 	uint32_t duration;
 } file_list[8];
+
+void print_error(uint8_t x, uint8_t y, uint8_t fr);
 
 void (*loop_func)(void);		// Loop function pointer for each view
 uint8_t mode;							// Capture mode

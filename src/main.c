@@ -20,8 +20,12 @@
 #include "lcd.h"
 #include "icons.h"
 
-// TO CHECK: SDCS and LCDCS pins are open-drain, check why they don't go down to GND when data reg set to 1
-//				SDCS drops to ~2V, which is probably too high to be registered as low -> init bug
+// SD init seems to work, files are created OK
+// 4GB phone card is recognized as SDv2
+// CMD17 gives R1 reply ILLEGAL COMMAND, card ends up in wrong state somewhere ?
+//		LPC_GPIO1->DATA &= ~(1<<5);		// DEBUG
+// f_write doesn't work (see return code ?)
+
 // TODO: merge image conversion code between lcd_preview() and save_bmp()
 // TODO: lcd_preview doesn't work before going into capture mode
 // TODO: File list stops where it shouldn't, see view.c
@@ -86,6 +90,14 @@ void ADC_IRQHandler(void) {
     NVIC->ICPR[1] = (1<<17);		// Ack interrupt
 }
 
+void print_error(uint8_t x, uint8_t y, uint8_t fr) {
+	str_buffer[0] = hexify((fr >> 4) & 15);
+	str_buffer[1] = hexify(fr & 15);
+	str_buffer[2] = 0;
+
+	lcd_print(x, y, str_buffer, COLOR_RED, 1);
+}
+
 int main(void) {
 	// Should already be set correctly in SystemInit()...
     LPC_SYSCON->SYSAHBCLKCTRL = (1<<0) | (1<<1) | (1<<2) | (1<<3) | (1<<4) | (1<<6) |
@@ -101,7 +113,7 @@ int main(void) {
     gbcam_ok = 0;
 
 	systick = 0;
-	while (systick < 10);	// 200ms
+	while (systick < 10);	// 100ms
 
     init_io();
 
@@ -176,10 +188,7 @@ int main(void) {
 					sd_ok = 0;
 					FCLK_FAST();
 					lcd_paint(218, 0, icon_sdnok, 1);
-					str_buffer[0] = hexify((fr >> 4) & 15);
-					str_buffer[1] = hexify(fr & 15);
-					str_buffer[2] = 0;
-					lcd_print(0, 0, str_buffer, COLOR_WHITE, 1);
+					print_error(0, 0, fr);
 				}
 			}
 

@@ -95,8 +95,6 @@ uint8_t spi_receivebyte(void) {
 void spi_send(const uint8_t *buf, uint16_t length) {
 	//uint8_t dummy;
 
-	//if (!length) return;
-
 	while (length) {
 		while (!(LPC_SSP->SR & 0x02));
 		LPC_SSP->DR = *buf;
@@ -111,7 +109,6 @@ void spi_send(const uint8_t *buf, uint16_t length) {
 
 void spi_receive(uint8_t *buf, uint16_t length) {
 	while (length) {
-	//for (i = 0; i < length; i++) {
 		*buf = spi_receivebyte();
 		length--;
 		buf++;
@@ -152,7 +149,7 @@ static BYTE rcvr_spi(void) {
 static BYTE wait_ready(void) {
 	BYTE res;
 
-	Timer2 = 100;	// Was 50 DEBUG
+	Timer2 = 5000;
 	rcvr_spi();
 	do {
 		res = rcvr_spi();
@@ -181,7 +178,15 @@ static void deselect(void) {
 
 static BOOL select(void) {
 	LPC_GPIO0->DATA &= ~(1<<4);
-	return TRUE;
+
+	spi_receivebyte();
+
+	if (wait_ready() == 0xFF)
+		return TRUE;
+
+	deselect();
+
+	return FALSE;
 }
 
 
@@ -220,17 +225,17 @@ static BOOL rcvr_datablock (
 ) {
 	BYTE token;
 
-	do {
+	/*do {
 		token = rcvr_spi();
-	} while (token == 0);
+	} while (token == 0);*/
 
-	if (token != 0xFE) {
-		Timer1 = 50;	// Was 20 DEBUG
+	//if (token != 0xFE) {
+		Timer1 = 200;
 		do {
 			token = rcvr_spi();
 			Timer1--;
 		} while ((token == 0xFF) && Timer1);
-	}
+	//}
 
 	if (token != 0xFE)
 		return FALSE;	/* If not valid data token, return with error */
@@ -238,9 +243,9 @@ static BOOL rcvr_datablock (
 	do {							/* Receive the data block into buffer */
 		rcvr_spi_m(buff++);
 		rcvr_spi_m(buff++);
-		rcvr_spi_m(buff++);
-		rcvr_spi_m(buff++);
-	} while (btr -= 4);
+		//rcvr_spi_m(buff++);
+		//rcvr_spi_m(buff++);
+	} while (btr -= 2);	//4);
 	rcvr_spi();						/* Discard CRC */
 	rcvr_spi();
 
@@ -253,7 +258,6 @@ static BOOL rcvr_datablock (
 /* Send a data packet to MMC                                             */
 /*-----------------------------------------------------------------------*/
 
-#if _READONLY == 0
 static BOOL xmit_datablock (
 	const BYTE *buff,	/* 512 byte data block to be transmitted */
 	BYTE token			/* Data/Stop token */
@@ -272,18 +276,15 @@ static BOOL xmit_datablock (
 		} while (--wc);
 		xmit_spi(0xFF);					/* CRC (Dummy) */
 		xmit_spi(0xFF);
+
 		resp = rcvr_spi();				// Much time was lost here...
-		while ((resp & 0x1F) != 0x05) {
-			resp = rcvr_spi();
-		}
-		do {
-			resp = rcvr_spi();
-		} while (resp == 0);
+
+		if ((resp & 0x1F) != 0x05)
+			return FALSE;
 	}
 
 	return TRUE;
 }
-#endif /* _READONLY */
 
 
 
@@ -322,10 +323,13 @@ static BYTE send_cmd (
 
 	/* Receive command response */
 	if (cmd == CMD12) rcvr_spi();		/* Skip a stuff byte when stop reading */
-	n = 100;							/* Wait for a valid response in timeout of 100 attempts */
+	n = 100;							/* Wait for a valid response in timeout of 10 attempts */
 	do
 		res = rcvr_spi();
 	while ((res & 0x80) && --n);
+
+	/*if ((cmd == CMD17) && (res & 0x04))
+		for(;;){}*/
 
 	return res;			/* Return with the response value */
 }
@@ -351,15 +355,18 @@ DSTATUS disk_initialize(
 	if (drv) return STA_NOINIT;			/* Supports only single drive */
 	if (Stat & STA_NODISK) return Stat;	/* No card in the socket */
 
-	//power_on();							/* Force socket power on */
 	FCLK_SLOW();
-	deselect();
-	for (n = 100; n; n--)
+	//deselect();
+
+	for (n = 10; n; n--)
 		rcvr_spi();							/* Dummy clocks */
+
+	Timer2 = 200;
+	while ((send_cmd(CMD0, 0) != 1) && Timer2--) {};
 
 	ty = 0;
 	if (send_cmd(CMD0, 0) == 1) {			/* Enter Idle state */
-		Timer1 = 10000;						/* Initialization timeout of 1000 msec */
+		Timer1 = 10000;					/* Initialization timeout of 1000 msec */
 		if (send_cmd(CMD8, 0x1AA) == 1) {	/* SDHC */
 			for (n = 0; n < 4; n++)
 				ocr[n] = rcvr_spi();		/* Get trailing return value of R7 resp */
@@ -469,8 +476,7 @@ DRESULT disk_write (
 		if ((send_cmd(CMD24, sector) == 0)	/* WRITE_BLOCK */
 			&& xmit_datablock(buff, 0xFE))
 			count = 0;
-	}
-	else {				/* Multiple block write */
+	} else {				/* Multiple block write */
 		if (CardType & CT_SDC) send_cmd(ACMD23, count);
 		if (send_cmd(CMD25, sector) == 0) {	/* WRITE_MULTIPLE_BLOCK */
 			do {

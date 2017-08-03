@@ -130,7 +130,6 @@ uint8_t save_bmp() {
 // Vx + 3584 bytes image in GB format (x = frames skipped since last one)
 // Ax + x*512 bytes of 8192Hz 8-bit unsigned audio (x = number of audio frames to follow)
 uint8_t new_file() {
-	uint16_t br;
 	char * file_name = file_list[0].file_name;
 
 	// Find filename and create file

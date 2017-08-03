@@ -26,6 +26,7 @@ uint8_t list_files(uint16_t page) {
     c = 0;
     ff = page * 8;
     fr = f_opendir(&dir, "/");
+
     if (fr == FR_OK) {
         for (;;) {
         	fr = f_readdir(&dir, &file_info);
