@@ -9,68 +9,132 @@
 */
 #include "main.h"
 #include "views.h"
+#include "capture.h"
 #include "colors.h"
 #include "io.h"
 #include "icons.h"
 #include "lcd.h"
 
+#define MENU_MAX 5
+
+typedef struct {
+	uint16_t y;
+	char * string;
+	uint16_t color;
+	void (*func)(void);
+} menu_item_t;
+
+void func_photo(void) {
+	mode = MODE_PHOTO;
+	fade_out(capture_view);
+}
+void func_video(void) {
+	mode = MODE_VIDEO;
+	fade_out(capture_view);
+}
+void func_view(void) {
+	fade_out(view_view);
+}
+void func_sram(void) {
+	fade_out(sram_view);
+}
+void func_settings(void) {
+	mode = MODE_SETTINGS;
+	fade_out(capture_view);
+}
+void func_about(void) {
+	fade_out(about_view);
+}
+
+static const menu_item_t menu_items[6] = {
+	{ 96+0*24, "Photo",	COLOR_RED, func_photo },
+	{ 96+1*24, "Video",	COLOR_ORANGE, func_video },
+	{ 96+2*24, "View",	COLOR_GREEN, func_view },
+	{ 96+3*24, "SRAM dump",	COLOR_YELLOW, func_sram },
+	{ 96+4*24, "Settings",	COLOR_CYAN, func_settings },
+	{ 96+5*24, "About",	COLOR_BLUE, func_about }
+};
+
+uint8_t menu_item_enabled[6] = { 0, 0, 0, 0, 0, 1 };
+
+void menu_move_cursor(const int8_t direction) {
+	do {
+		cursor += direction;
+
+		if (cursor > MENU_MAX)
+			cursor = 0;
+		else if (cursor < 0)
+			cursor = MENU_MAX;
+
+	} while (!menu_item_enabled[cursor]);
+}
+
+void menu_draw() {
+	const menu_item_t * menu_item;
+	uint16_t color;
+
+	if (!menu_item_enabled[cursor])
+		menu_move_cursor(1);
+
+	for (uint32_t c = 0; c <= MENU_MAX; c++) {
+		menu_item = &menu_items[c];
+		if (menu_item_enabled[c])
+			color = menu_item->color;
+		else
+			color = COLOR_GREY;
+		lcd_print(48, menu_item->y, menu_item->string, color, 1);
+	}
+}
+
+void menu_slot_func(void) {
+	if (sd_ok) {
+		menu_item_enabled[2] = 1;
+		if (gbcam_ok) {
+			menu_item_enabled[0] = 1;
+			menu_item_enabled[1] = 1;
+			menu_item_enabled[3] = 1;
+			menu_item_enabled[4] = 1;
+		}
+	}
+
+	refresh_req = 1;
+}
+
 void menu_view() {
     lcd_clear();
 
-	lcd_print(48, 96, "Photo", COLOR_RED, 1);
-	lcd_print(48, 96+24, "Video", COLOR_ORANGE, 1);
-	lcd_print(48, 96+24+24, "View", COLOR_GREEN, 1);
-	lcd_print(48, 96+24+24+24, "SRAM dump", COLOR_YELLOW, 1);
-	lcd_print(48, 96+24+24+24+24, "Settings", COLOR_CYAN, 1);
-	lcd_print(48, 96+24+24+24+24+24, "About", COLOR_BLUE, 1);
+    menu_draw();
 
     lcd_paint(75, 268, logo_fe, 0);
 	lcd_print(76, 304, FW_STRING, COLOR_GREY, 0);
 
 	cursor = 0;
-	cursor_prev = 1;
+	cursor_prev = 1;		// Force cursor update
 
 	fade_in();
 
 	loop_func = menu_loop;
+	slot_func = menu_slot_func;
 }
 
 void menu_loop() {
-	systick = 0;
-	while (systick < 2);	// 20ms
+	systick_wait(2);		// 20ms (50Hz update rate)
 
 	read_inputs();
 
+	if (refresh_req)
+		menu_draw();
+
 	if (inputs_active & BTN_DOWN) {
-		if (cursor == 5)
-			cursor = 0;
-		else
-			cursor++;
+		menu_move_cursor(1);
 	} else if (inputs_active & BTN_UP) {
-		if (cursor == 0)
-			cursor = 5;
-		else
-			cursor--;
+		menu_move_cursor(-1);
 	} else if (inputs_active & BTN_A) {
-		if (cursor == 0) {
-			mode = MODE_PHOTO;
-			fade_out(capture_view);
-		} else if (cursor == 1) {
-			mode = MODE_VIDEO;
-			fade_out(capture_view);
-		} else if (cursor == 2) {
-			fade_out(view_view);
-		} else if (cursor == 3) {
-			fade_out(sram_view);
-		} else if (cursor == 4) {
-			mode = MODE_SETTINGS;
-			fade_out(capture_view);
-		} else if (cursor == 5) {
-			fade_out(about_view);
-		}
+		menu_items[cursor].func();
 		return;
 	}
 
+	// Refresh cursor if needed
 	if (cursor != cursor_prev) {
 		lcd_fill(32, 96 + (cursor_prev * 24), 16, 16, COLOR_BLACK);
 		lcd_print(32, 96 + (cursor * 24), "#", COLOR_WHITE, 1);

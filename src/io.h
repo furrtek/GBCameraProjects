@@ -12,4 +12,6 @@ void delay_us(uint16_t delay);
 void read_inputs();
 void init_io();
 
+uint8_t inputs_prev, inputs_current, inputs_active;
+
 #endif /* IO_H_ */

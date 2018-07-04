@@ -10,22 +10,23 @@
 
 #include "main.h"
 #include "sdcard.h"
+#include "capture.h"
 
 const char file_header[4] = { 'G', 'B', 'C', 'C' };
 
 const uint8_t bmp_header[54] = {
 	'B', 'M',					// Magic
-	0x36, 0xA8, 0x00, 0x00,		// Size
+	0x76, 0x1C, 0x00, 0x00,		// Size (TODO)
 	0x00, 0x00, 0x00, 0x00,		// Reserved
-	0x36, 0x00, 0x00, 0x00,		// Offset to image data
+	0x76, 0x00, 0x00, 0x00,		// Offset to image data
 
 	0x28, 0x00, 0x00, 0x00,		// Header size
 	0x80, 0x00, 0x00, 0x00,		// Image width
 	0x70, 0x00, 0x00, 0x00,		// Image height
 	0x01, 0x00,					// Planes
-	0x18, 0x00,					// Bits per pixel
+	0x04, 0x00,					// Bits per pixel
 	0x00, 0x00, 0x00, 0x00,		// Compression
-	0x00, 0xA8, 0x00, 0x00,		// Image data size
+	0x00, 0x1C, 0x00, 0x00,		// Image data size
 	0x00, 0x00, 0x00, 0x00,		// X resolution
 	0x00, 0x00, 0x00, 0x00,		// Y resolution
 	0x00, 0x00, 0x00, 0x00,		// Colors count
@@ -35,11 +36,10 @@ const uint8_t bmp_header[54] = {
 void spi_init() {
 	uint8_t i, dummy;
 
-    LPC_SYSCON->PRESETCTRL &= ~0x01;
 	LPC_SYSCON->PRESETCTRL |= 0x01;	// SSP0 out of reset state
-	LPC_SYSCON->SSPCLKDIV = 0x20;
-	LPC_SSP->CPSR = 0x2;
-	LPC_SSP->CR0 = 0x0407;
+	LPC_SYSCON->SSPCLKDIV = 20;		// 72/2/20/4 = 450kHz
+	LPC_SSP->CPSR = 0x2;			// Prescaler
+	LPC_SSP->CR0 = 0x0407;			// SPI 8 bit, /4
 	LPC_SSP->CR1 = 0x2;				// SSP0 on
 
 	for (i = 0; i < 8; i++)
@@ -48,47 +48,36 @@ void spi_init() {
 	(void)dummy;
 }
 
-const uint8_t bmp_colors[12] = {
-	0x00, 0x00, 0x00,
-	0x55, 0x55, 0x55,
-	0xAA, 0xAA, 0xAA,
-	0xFF, 0xFF, 0xFF
+void set_filename(const char * filename) {
+	memcpy(file_list[0].file_name, filename, 13);
+}
+
+const uint8_t bmp_colors[16] = {
+	0x00, 0x55, 0xAA, 0xFF,
+	0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00
 };
 
 uint8_t save_bmp() {
 	uint16_t br;
 	uint8_t data_l, data_h, pixel;
-	uint8_t xt, yt, xp;
+	uint8_t xt, yt, xp, pixel_pair = 0;
 	uint16_t addr, yto;
-	char * file_name = file_list[0].file_name;
-
-	// Find filename and create file
-	fr = f_open(&file, file_name, FA_WRITE | FA_CREATE_NEW);
-    while (fr == FR_EXIST) {
-    	if (file_name[7] < '9') {
-    		file_name[7]++;
-    	} else {
-    		file_name[7] = '0';
-        	if (file_name[6] < '9') {
-        		file_name[6]++;
-        	} else {
-        		file_name[6] = '0';
-            	if (file_name[5] < '9') {
-            		file_name[5]++;
-            	} else {
-            		// TODO: No file available for creation (all 999 already exist)
-            		return 1;
-            	}
-        	}
-    	}
-    	fr = f_open(&file, file_name, FA_WRITE | FA_CREATE_NEW);
-    }
-
-    if (fr != FR_OK)
-    	return 1;
+	uint8_t color[4] = { 0, 0, 0, 0 };
 
     // Write header
-    f_write(&file, &bmp_header, 4, &br);
+	//if (f_write(&file, &bmp_header, 54, &br))		// Write image marker
+	//	LPC_GPIO1->DATA &= ~(1<<8);		// Yellow LED on DEBUG
+	f_write(&file, &bmp_header, 54, &br);
+
+	// Write palettes
+	for (uint32_t c = 0; c < 16; c++) {
+		color[0] = bmp_colors[c];
+		color[1] = bmp_colors[c];
+		color[2] = bmp_colors[c];
+		f_write(&file, &color, 4, &br);
+	}
 
     // Write image data
 	for (yt = 0; yt < 112; yt++) {
@@ -116,7 +105,13 @@ uint8_t save_bmp() {
 			// ------0- -------0	------1- -------1
 			pixel = (((data_h >> xp) << 1) & 2) | ((data_l >> xp) & 1);
 
-		    f_write(&file, &bmp_colors[pixel * 3], 3, &br);
+			if ((xt & 1) == 1) {
+				pixel_pair |= pixel;
+				if (f_write(&file, &pixel_pair, 1, &br))	// Write image marker
+					LPC_GPIO1->DATA &= ~(1<<8);		// Yellow LED on DEBUG
+			} else {
+				pixel_pair = pixel << 4;
+			}
 		}
 	}
 
@@ -155,7 +150,8 @@ uint8_t new_file() {
     }
 
     if (fr != FR_OK)
-    	return 1;
+    	return fr;
+    	//return 1;
 
     return 0;
 }

@@ -8,10 +8,10 @@
 ===============================================================================
 */
 
-#include <string.h>
 #include "main.h"
 #include "colors.h"
 #include "views.h"
+#include "capture.h"
 #include "lcd.h"
 #include "io.h"
 #include "sdcard.h"
@@ -20,13 +20,16 @@
 void sram_view() {
     lcd_clear();
 
-	lcd_print(88, 64, "<  >", COLOR_GREY, 1);
+	lcd_print(64, 64, "<  /30>", COLOR_GREY, 1);
 
 	lcd_print(32, 220, "Save", COLOR_RED, 1);
 	lcd_print(32, 220+24, "Erase", COLOR_GREEN, 1);
 	lcd_print(32, 220+24+24, "Exit", COLOR_BLUE, 1);
 
-	memcpy(file_list[0].file_name, "SDUMP000.BMP", 13);
+	set_filename("SDUMP000.BMP");
+
+    palette_number = 0;
+	set_palette();
 
 	prev_picture_number = 1;
     picture_number = 0;
@@ -70,7 +73,10 @@ void sram_loop() {
 	if (inputs_active & BTN_A) {
 		if (cursor == 0) {
 			// Save
-			if (!new_file()) {
+			uint8_t fr = save_bmp();
+			print_error(0, 0, fr);	// DEBUG
+
+			/*if (!new_file()) {
 				lcd_print(56, 300, file_list[0].file_name, COLOR_WHITE, 0);
 
 				LPC_GPIO1->DATA &= ~(1<<8);		// Yellow LED on
@@ -82,15 +88,15 @@ void sram_loop() {
 				f_close(&file);
 
 				LPC_GPIO1->DATA |= (1<<8);		// Yellow LED off
-			}
+			}*/
 		} else if (cursor == 1) {
 			// Erase
-			gbcam_set(0x4000, bank);		// SRAM bank
+			gbcam_put(0x4000, bank);		// SRAM bank
 			delay_us(2);
-		    gbcam_set(0x0000, 0x0A);		// Enable SRAM writes
+			gbcam_put(0x0000, 0x0A);		// Enable SRAM writes
 
 		    for (c = 0; c < 0x1000; c++)
-		    	gbcam_set(bank_offset + c, 0xFF);
+		    	gbcam_put(bank_offset + c, 0xFF);
 
 		    prev_picture_number = picture_number + 1;	// Force refresh
 		} else if (cursor == 2) {
@@ -102,14 +108,14 @@ void sram_loop() {
 	if (picture_number != prev_picture_number) {
 		lcd_fill(16, 64, 32, 16, COLOR_BLACK);		// Erase previous picture number
 
-		str_buffer[0] = 0x30 + (picture_number / 10);		// Draw new picture number
-		str_buffer[1] = 0x30 + (picture_number % 10);
+		str_buffer[0] = '0' + (picture_number / 10);		// Draw new picture number
+		str_buffer[1] = '0' + (picture_number % 10);
 		str_buffer[2] = 0;
-		lcd_print(104, 64, str_buffer, COLOR_WHITE, 1);
+		lcd_print(80, 64, str_buffer, COLOR_WHITE, 1);
 
 		// Read SRAM
 		bank = (picture_number >> 1) + 1;	// SRAM bank
-		gbcam_set(0x4000, bank);
+		gbcam_put(0x4000, bank);
 		delay_us(2);
 
 		if (picture_number & 1)				// There are 2 pictures per bank
@@ -118,7 +124,7 @@ void sram_loop() {
 			bank_offset = 0xA000;
 
 		for (c = 0; c < FRAME_SIZE; c++)
-			picture_buffer[c] = gbcam_get(bank_offset + c) ^ 0xFF;
+			picture_buffer[c] = gbcam_get_ram(bank_offset + c) ^ 0xFF;
 
 		lcd_preview(56, 96);
 

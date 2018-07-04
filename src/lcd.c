@@ -11,33 +11,34 @@
 #include "font.h"
 #include "colors.h"
 #include "sdcard.h"
+#include "capture.h"
 #include "lcd.h"
 #include "io.h"
 
 void lcd_write_byte(uint8_t v) {
-	//uint8_t dummy;
+	uint8_t dummy;
 
 	LPC_SSP->CR0 = 0x0007;			// 8bit transfers
 
 	while (!(LPC_SSP->SR & 0x02));
 	LPC_SSP->DR = v;
 	while ((LPC_SSP->SR & 0x10));
-	//dummy = LPC_SSP->DR;
+	dummy = LPC_SSP->DR;
 
-	//(void)dummy;
+	(void)dummy;
 }
 
 void lcd_write_word(uint16_t v) {
-	//uint8_t dummy;
+	uint8_t dummy;
 
 	LPC_SSP->CR0 = 0x000F;			// 16bit transfers
 
 	while (!(LPC_SSP->SR & 0x02));
 	LPC_SSP->DR = v;
 	while ((LPC_SSP->SR & 0x10));
-	//dummy = LPC_SSP->DR;
+	dummy = LPC_SSP->DR;
 
-	//(void)dummy;
+	(void)dummy;
 }
 
 void lcd_writecommand(uint8_t c) {

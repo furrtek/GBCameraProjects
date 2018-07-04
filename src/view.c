@@ -11,6 +11,7 @@
 #include "main.h"
 #include "colors.h"
 #include "views.h"
+#include "capture.h"
 #include "icons.h"
 #include "lcd.h"
 #include "io.h"

@@ -14,7 +14,7 @@
 
 extern const uint8_t logo[];
 extern const uint8_t logo_fe[];
-extern const uint8_t icon_rec[];
+//extern const uint8_t icon_rec[];
 extern const uint8_t icon_sdok[];
 extern const uint8_t icon_sdnok[];
 extern const uint8_t icon_camok[];

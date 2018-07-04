@@ -16,21 +16,19 @@
 #include "sdcard.h"
 #include "colors.h"
 #include "gbcam.h"
+#include "capture.h"
 
-void load_palette(uint8_t index) {
-	uint8_t c;
-
-	for (c = 0; c < 4; c++)
-		lut_2bpp[c] = *(lut_2bpp_list[index] + c);
+void set_palette() {
+	lut_2bpp = lut_2bpp_list[palette_number];
 }
 
 void update_gain() {
 	uint16_t c;
 
-	gbcam_set(0x4000, 0x10);		// ASIC registers
+	gbcam_put(0x4000, 0x10);		// ASIC registers
 	delay_us(10);
 
-	gbcam_set(0xA001, gain >> 4);	// Sensor gain
+	gbcam_put(0xA001, gain >> 4);	// Sensor gain
 
 	// Display gain bar
 	c = 76 + (gain >> 1);
@@ -41,10 +39,17 @@ void update_gain() {
 	prev_gain_bar = c;
 }
 
+void capture_slot_func(void) {
+	state = STATE_STOP;
+}
+
 void capture_view() {
 	uint16_t c;
 
-	memcpy(file_list[0].file_name, "GBCAM000.BIN", 13);
+	if (mode == MODE_PHOTO)
+		set_filename("GBCAM000.BMP");
+	else
+		set_filename("GBCAM000.BIN");
 
     // ADC setup
     LPC_ADC->CR = (16<<8) | (4<<24) | 1;	// 72/16=4.5MHz, start conversion on rising edge of CT32B0_MAT0
@@ -52,7 +57,7 @@ void capture_view() {
     LPC_ADC->INTEN = 1;						// Interrupt on conversion done
 
     // Timer
-	LPC_TMR32B0->MCR = 2;			// Reset on match 0
+	LPC_TMR32B0->MCR = 0x0002;				// Reset on match 0
 
 	// Initial matrix threshold values (medium-high contrast) taken from real GB Cam
 	/*qlevels[0] = 0x8C;
@@ -64,7 +69,9 @@ void capture_view() {
 	gain = 8 << 4;
 
 	// 2bpp gradient values
-	load_palette(0);
+    prev_palette_number = 1;		// Force palette update
+    palette_number = 0;
+	set_palette();
 
     lcd_clear();
 
@@ -98,26 +105,24 @@ void capture_view() {
     gbcam_setexposure(exposure);
 
     // Clear GB Cam scratchpad RAM (bank 0, A000~AFFF)
-    gbcam_set(0x4000, 0x00);		// SRAM bank 0
-    gbcam_set(0x0000, 0x0A);		// Enable SRAM writes
+    gbcam_put(0x4000, 0x00);		// SRAM bank 0
+    gbcam_put(0x0000, 0x0A);		// Enable SRAM writes
     for (c = 0xA000; c < 0xB000; c++)
-    	gbcam_set(c, 0x00);
+    	gbcam_put(c, 0x00);
 
     update_gain();
-	gbcam_set(0xA004, 0x46);		// Edge enhance 200%
-	gbcam_set(0xA005, 0x9F);		// Dark level calibration 9F TESTING
+    gbcam_put(0xA004, 0x46);		// Edge enhance 200%
+    gbcam_put(0xA005, 0x9F);		// Dark level calibration 9F TESTING
 
 	prev_expo_status = EXPO_INRANGE;
     cursor_prev = 1;
     cursor = 0;
-    //picture_number = 15;			// Used as contrast value here
-    prev_picture_number = 1;
-    picture_number = 0;
 	state = STATE_IDLE;
 
 	fade_in();
 
 	loop_func = capture_loop;
+	slot_func = capture_slot_func;
 }
 
 void capture_loop() {
@@ -140,19 +145,17 @@ void capture_loop() {
 			if (cursor > 0)
 				cursor--;
 		} else if (inputs_active & BTN_LEFT) {
-			if (picture_number)
-				picture_number--;
+			if (palette_number)
+				palette_number--;
 			/*gbcam_setcontrast(picture_number);
 		    gbcam_setmatrix();*/
-			load_palette(picture_number);	// This should only work when cursor == 1
+			set_palette();	// TODO: This should only work when cursor == 1
 		} else if (inputs_active & BTN_RIGHT) {
-			if (picture_number < 2)
-				picture_number++;
-			/*if (picture_number < 31)
-				picture_number++;
-			gbcam_setcontrast(picture_number);
+			if (palette_number < 2)
+				palette_number++;
+			/*gbcam_setcontrast(picture_number);
 		    gbcam_setmatrix();*/
-			load_palette(picture_number);	// This should only work when cursor == 1
+			set_palette();	// TODO: This should only work when cursor == 1
 		} else if (inputs_active & BTN_A) {
 			if (cursor == 0) {
 				if (gbcam_ok && sd_ok)
@@ -178,23 +181,23 @@ void capture_loop() {
 		cursor_prev = cursor;
 	}
 
-	if (picture_number != prev_picture_number) {
-		str_buffer[0] = 'A' + picture_number;
+	if (palette_number != prev_palette_number) {
+		str_buffer[0] = 'A' + palette_number;
 		str_buffer[1] = 0;
 		lcd_print(32+128, 256+24, str_buffer, COLOR_YELLOW, 1);
-		prev_picture_number = picture_number;
+		prev_palette_number = palette_number;
 	}
 
 	// Read scratchpad to picture buffer
-	gbcam_set(0x4000, 0x00);	// SRAM bank 0
+	gbcam_put(0x4000, 0x00);	// SRAM bank 0
 	delay_us(2);
 	for (c = 0; c < FRAME_SIZE; c++)
-		picture_buffer[c] = gbcam_get(0xA100 + c) ^ 0xFF;
+		picture_buffer[c] = gbcam_get_ram(0xA100 + c) ^ 0xFF;
 
 	// Ask ASIC for capture
-	gbcam_set(0x4000, 0x10);	// ASIC registers
+	gbcam_put(0x4000, 0x10);	// ASIC registers
 	delay_us(2);
-	gbcam_set(0xA000, 0x03);
+	gbcam_put(0xA000, 0x03);
 
 	// Wait for capture to start
 	gbcam_wait_busy();
@@ -253,15 +256,18 @@ void capture_loop() {
 
 	if (state == STATE_START) {
 		// Recording start request
-		if (!new_file()) {
-		    // Write header
-		    f_write(&file, &file_header, 4, &br);
-		    // Leave space for frame counts
-		    f_lseek(&file, 16);
+		fr = new_file();
+		if (!fr) {
+		    if (mode == MODE_VIDEO) {
+				// Write header
+		    	f_write(&file, &file_header, 4, &br);
+				// Leave space for frame counts
+				f_lseek(&file, 16);
+		    }
 
 			lcd_print(24, 216, file_list[0].file_name, COLOR_WHITE, 0);
-			if (mode == MODE_VIDEO)
-				lcd_paint(192, 64, icon_rec, 1);	// Display "REC" icon
+			//if (mode == MODE_VIDEO)
+			//	lcd_paint(192, 64, icon_rec, 1);	// Display "REC" icon
 			LPC_GPIO1->DATA &= ~(1<<5);		// Red LED on
 
 			frame_tick = 0;
@@ -278,6 +284,9 @@ void capture_loop() {
 
 			state = STATE_REC;
 			LPC_TMR32B0->TCR = 1;
+		} else {
+			print_error(0, 0, fr);	// DEBUG
+			state = STATE_IDLE;
 		}
 	}
 
@@ -292,38 +301,46 @@ void capture_loop() {
 			video_frame_count += (skipped + 1);
 			skipped = 0;
 
-			LPC_GPIO1->DATA &= ~(1<<8);		// Yellow LED on
+			// DEBUG:
+		    NVIC->ICER[0] = 0xFFFFFFFFUL;
+		    NVIC->ICER[1] = 0xFFFFFFFFUL;
+		    //NVIC->ICER[1] |= (1<<17);
 
-			f_write(&file, &im_marker, 2, &br);		// Write image marker
-			for (c = 0; c < 7; c++)					// Write image data (FATFS doesn't like writing more than 512 bytes at a time)
-				f_write(&file, &picture_buffer[512 * c], 512, &br);
+		    if (mode == MODE_VIDEO) {
+				f_write(&file, &im_marker, 2, &br);		// Write image marker
 
-			if (audio_fifo_ready && (mode == MODE_VIDEO)) {
-				sn_marker[1] = audio_fifo_ready;
-				audio_fifo_ready = 0;
+				for (c = 0; c < 7; c++)					// Write image data (FATFS doesn't like writing more than 512 bytes at a time)
+					f_write(&file, &picture_buffer[512 * c], 512, &br);
 
-				f_write(&file, &sn_marker, 2, &br);	// Write audio marker
-				do {								// Write audio data
-					f_write(&file, &audio_fifo[audio_fifo_get], 512, &br);
-					audio_frame_count++;
+				if (audio_fifo_ready) {
+					sn_marker[1] = audio_fifo_ready;
+					audio_fifo_ready = 0;
 
-					if (audio_fifo_get == 5)	// Roll
-						audio_fifo_get = 0;
-					else
-						audio_fifo_get++;
+					f_write(&file, &sn_marker, 2, &br);	// Write audio marker
+					do {								// Write audio data
+						f_write(&file, &audio_fifo[audio_fifo_get], 512, &br);
+						audio_frame_count++;
 
-					sn_marker[1]--;
-				} while (sn_marker[1]);
-			} else if (mode == MODE_PHOTO) {
+						if (audio_fifo_get == MAX_AUDIO_BUFFERS - 1)	// Cycle buffers
+							audio_fifo_get = 0;
+						else
+							audio_fifo_get++;
+
+						sn_marker[1]--;
+					} while (sn_marker[1]);
+				}
+		    } else if (mode == MODE_PHOTO) {
+		    	save_bmp();
 				state = STATE_STOP;
 			}
 
-			LPC_GPIO1->DATA |= (1<<8);		// Yellow LED off
+			//LPC_GPIO1->DATA |= (1<<8);		// Yellow LED off
 		}
 
 		// Update recording time every second
 		if ((rec_timer >= 100) && (mode == MODE_VIDEO)) {
 			rec_timer -= 100;
+
 			if (seconds < 59) {
 				seconds++;
 			} else {
@@ -348,8 +365,8 @@ void capture_loop() {
 	if (state == STATE_STOP) {
 		// Recording stop request
 		LPC_TMR32B0->TCR = 0;
-		if (mode == MODE_VIDEO)
-			lcd_fill(192, 64, 32, 32, COLOR_GREY);	// Hide "REC" icon
+		//if (mode == MODE_VIDEO)
+		//	lcd_fill(192, 64, 32, 32, COLOR_GREY);	// Hide "REC" icon
 		LPC_GPIO1->DATA |= (1<<5);		// Red LED off
 		state = STATE_IDLE;
 		f_lseek(&file, 4);
@@ -363,9 +380,9 @@ void capture_loop() {
 		if (expo_status == EXPO_INRANGE)
 			lcd_print(56, 200, "In range  ", COLOR_GREEN, 1);
 		if (expo_status == EXPO_DARK)
-			lcd_print(56, 200, 	"Too dark  ", COLOR_RED, 1);
+			lcd_print(56, 200, "Too dark  ", COLOR_RED, 1);
 		if (expo_status == EXPO_BRIGHT)
-			lcd_print(56, 200, 	"Too bright", COLOR_RED, 1);
+			lcd_print(56, 200, "Too bright", COLOR_RED, 1);
 	}
 
 	prev_expo_status = expo_status;

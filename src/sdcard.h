@@ -5,6 +5,7 @@
  *      Author: furrtek
  */
 
+#include <string.h>
 #include "LPC13xx.h"
 #include "diskio.h"
 
@@ -20,6 +21,7 @@ void FCLK_SLOW();
 void xmit_spi(BYTE dat);
 
 void spi_init(void);
+void set_filename(const char * filename);
 uint8_t save_bmp();
 uint8_t new_file();
 
