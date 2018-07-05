@@ -13,21 +13,27 @@
 #include "io.h"
 #include "lcd.h"
 
+const struct {
+	uint16_t x;
+	uint16_t y;
+	char * s;
+	uint16_t c;
+} credits[6] = {
+	{ 32, 64, "Hardware", COLOR_GREEN },
+	{ 32, 64+16, "Firmware", COLOR_GREEN },
+	{ 96, 64+16+16+8, "Furrtek", COLOR_WHITE },
+	{ 32, 64+96, "Thanks:", COLOR_GREEN },
+	{ 64, 64+96+16+8, "AntonioND", COLOR_WHITE },
+	{ 64+96, 64+96+16+8+16, "cLx", COLOR_WHITE }
+};
+
 void about_view() {
     lcd_clear();
 
-	lcd_print(32, 64, "Hardware", COLOR_GREEN, 1);
-	lcd_print(32, 64+16, "Firmware:", COLOR_GREEN, 1);
-	lcd_print(96, 64+16+16+8, "Furrtek", COLOR_WHITE, 1);
-
-	lcd_print(32, 64+96, "Thanks:", COLOR_GREEN, 1);
-	lcd_print(64, 64+96+16+8, "AntonioND", COLOR_WHITE, 1);
-	lcd_print(64+96, 64+96+16+8+16, "cLx", COLOR_WHITE, 1);
+    for (uint32_t c = 0; c < 6; c++)
+    	lcd_print(credits[c].x, credits[c].y, credits[c].s, credits[c].c, 1);
 
 	lcd_print(56, 304, "Press any button", COLOR_WHITE, 0);
-
-	cursor = 0;
-	cursor_prev = 1;
 
 	fade_in();
 
@@ -35,8 +41,7 @@ void about_view() {
 }
 
 void about_loop() {
-	systick = 0;
-	while (systick < 2);	// 20ms
+	systick_wait(2);	// 20ms
 
 	read_inputs();
 

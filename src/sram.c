@@ -44,11 +44,9 @@ void sram_view() {
 }
 
 void sram_loop() {
-	uint16_t c;
-	uint16_t br;
+	uint32_t c;
 
-	systick = 0;
-	while (systick < 2);	// 20ms
+	systick_wait(2);	// 20ms
 
 	read_inputs();
 
@@ -72,23 +70,15 @@ void sram_loop() {
 	}
 	if (inputs_active & BTN_A) {
 		if (cursor == 0) {
-			// Save
-			uint8_t fr = save_bmp();
-			print_error(0, 0, fr);	// DEBUG
-
-			/*if (!new_file()) {
+			if (!new_file()) {
 				lcd_print(56, 300, file_list[0].file_name, COLOR_WHITE, 0);
 
-				LPC_GPIO1->DATA &= ~(1<<8);		// Yellow LED on
+				//LPC_GPIO1->DATA &= ~(1<<8);		// Yellow LED on
 
-				f_write(&file, &bmp_header, sizeof(bmp_header), &br);
-				for (c = 0; c < 7; c++)			// Write image data (FATFS doesn't like writing more than 512 bytes at a time)
-					f_write(&file, &picture_buffer[512 * c], 512, &br);
+				save_bmp();
 
-				f_close(&file);
-
-				LPC_GPIO1->DATA |= (1<<8);		// Yellow LED off
-			}*/
+				//LPC_GPIO1->DATA |= (1<<8);		// Yellow LED off
+			}
 		} else if (cursor == 1) {
 			// Erase
 			gbcam_put(0x4000, bank);		// SRAM bank

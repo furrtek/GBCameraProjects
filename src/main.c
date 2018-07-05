@@ -21,14 +21,6 @@
 #include "lcd.h"
 #include "icons.h"
 
-// SD init seems to work, files are created OK
-// 4GB phone card is recognized as SDv2
-// CMD17 gives R1 reply ILLEGAL COMMAND, card ends up in wrong state somewhere ?
-//		LPC_GPIO1->DATA &= ~(1<<5);		// DEBUG
-// f_write returns FR_DISK_ERR
-
-// OK: Pullups on open collector pins
-
 // BUGS:
 // Can only record once. Have to power cycle to be able to record again.
 // Viewer allows selecting files when there are no files :(
@@ -46,10 +38,18 @@
 // TMR32B0 is used for recording timing (audio/video)
 // TMR32B1 is used for LCD backlight PWM
 // The Systick frequency is 100Hz (10ms)
+// Recording:
+// TMR32B0 match 0 triggers the ADC at 8192Hz (no IRQ, the ADC is able to listen to the timer)
+// The current audio buffer is filled up to 512 samples
+// When full, the frame_tick flag is set to tell capture_loop() that a frame can be recorded
+// This yields a max framerate of 8192/512 = 16fps
+// There are MAX_AUDIO_BUFFERS 512-bytes audio buffers (circular), allowing for max. ~300ms SD card write latency
+// Whenever capture_loop() has the time, it writes the filled buffers to the file
+
 // RAM usage:
 // We have 8kB of RAM only
 // FATFs takes up at least 512 bytes
-// Biggest arrays are picture_buffer (3584 bytes) and audio_fifo (MAX_AUDIO_BUFFERSx 512-byte buffers = 3072 bytes)
+// Largest arrays are picture_buffer (3584 bytes) and audio_fifo (MAX_AUDIO_BUFFERSx 512-byte buffers = 3072 bytes)
 
 void SysTick_Handler(void) {
 	if (systick < 255)
@@ -63,13 +63,12 @@ void SysTick_Handler(void) {
 
 void TIMER32_0_IRQHandler(void) {
 	// Simulates recording timing for playback
+	// TMR32B0 interrupt not used during record (but the timer runs !)
 	if (audio_fifo_ptr == 511) {
 		audio_fifo_ptr = 0;
-
-		frame_tick = 1;				// This sets the framerate (8192/512 = 16 fps)
-	} else {
+		frame_tick = 1;				// This sets the playback framerate (8192/512 = 16 fps)
+	} else
 		audio_fifo_ptr++;
-	}
 
 	LPC_TMR32B0->IR = 1;			// Ack interrupt
     NVIC->ICPR[1] = (1<<11);		// Ack interrupt
@@ -81,6 +80,7 @@ void ADC_IRQHandler(void) {
 
 	uint32_t ad_data = (LPC_ADC->DR0 >> 8) & 0xFF;
 	audio_fifo[audio_fifo_put][audio_fifo_ptr] = ad_data;
+
 	if (ad_data > audio_max)
 		audio_max = ad_data;		// Store peak level
 
@@ -180,13 +180,6 @@ int main(void) {
 
 	spi_init();
 
-	// DEBUG
-    /*delay_us(50000);
-	for (;;) {
-		//f_mount(&FatFs, "", 1);
-		//delay_us(50000);
-	}*/
-
     lcd_init();
 	FCLK_FAST();
     lcd_clear();
@@ -212,8 +205,8 @@ int main(void) {
 				FCLK_SLOW();
 				if ((fr = f_mount(&FatFs, "", 1)) == FR_OK)
 					sd_ok = 1;
-				else
-					print_error(0, 0, fr);	// DEBUG
+				//else
+				//	print_error(0, 0, fr);	// DEBUG
 			}
 
 			if (!gbcam_ok) {

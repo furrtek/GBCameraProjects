@@ -16,7 +16,7 @@ const char file_header[4] = { 'G', 'B', 'C', 'C' };
 
 const uint8_t bmp_header[54] = {
 	'B', 'M',					// Magic
-	0x76, 0x1C, 0x00, 0x00,		// Size (TODO)
+	0x76, 0x1C, 0x00, 0x00,		// Size of file
 	0x00, 0x00, 0x00, 0x00,		// Reserved
 	0x76, 0x00, 0x00, 0x00,		// Offset to image data
 
@@ -52,43 +52,39 @@ void set_filename(const char * filename) {
 	memcpy(file_list[0].file_name, filename, 13);
 }
 
-const uint8_t bmp_colors[16] = {
-	0x00, 0x55, 0xAA, 0xFF,
-	0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00
+const uint8_t bmp_colors[4] = {
+	0x00, 0x55, 0xAA, 0xFF
 };
 
 uint8_t save_bmp() {
 	uint16_t br;
 	uint8_t data_l, data_h, pixel;
-	uint8_t xt, yt, xp, pixel_pair = 0;
+	uint8_t xt, yt, yt_flip, xp, pixel_pair = 0;
 	uint16_t addr, yto;
-	uint8_t color[4] = { 0, 0, 0, 0 };
 
     // Write header
-	//if (f_write(&file, &bmp_header, 54, &br))		// Write image marker
-	//	LPC_GPIO1->DATA &= ~(1<<8);		// Yellow LED on DEBUG
 	f_write(&file, &bmp_header, 54, &br);
 
 	// Write palettes
-	for (uint32_t c = 0; c < 16; c++) {
-		color[0] = bmp_colors[c];
-		color[1] = bmp_colors[c];
-		color[2] = bmp_colors[c];
-		f_write(&file, &color, 4, &br);
+	for (uint32_t c = 0; c < 4; c++) {
+		f_putc(bmp_colors[c], &file);	// R
+		f_putc(bmp_colors[c], &file);	// G
+		f_putc(bmp_colors[c], &file);	// B
+		f_putc(0, &file);
 	}
+	for (uint32_t c = 0; c < (12 * 4); c++)
+		f_putc(0, &file);
 
     // Write image data
 	for (yt = 0; yt < 112; yt++) {
 
-		yto = (yt & 7) + ((yt & 0x78) * 16);
+		yt_flip = 111 - yt;
+		yto = (yt_flip & 7) + ((yt_flip & 0x78) * 16);
 
 		for (xt = 0; xt < 128; xt++) {
-			// See draft, complete mess: array of tiles to linear LCD format (x inverted)
-			// (xt & 0x78): tile # x
-			// + (yt & 7): pixel y in tile
-			// + (yt & 0x78) * 16: tile # y
+			// (xt & 0x78): 0XXXX000 tile # x
+			// + (yt & 7):  00000YYY pixel y in tile
+			// + (yt & 0x78) * 16: 0YYYY000 0000 tile # y
 			// * 2: 2 bytes per pixel
 
 			addr = ((xt & 0x78) + yto) * 2;
@@ -107,8 +103,8 @@ uint8_t save_bmp() {
 
 			if ((xt & 1) == 1) {
 				pixel_pair |= pixel;
-				if (f_write(&file, &pixel_pair, 1, &br))	// Write image marker
-					LPC_GPIO1->DATA &= ~(1<<8);		// Yellow LED on DEBUG
+				if (f_putc(pixel_pair, &file) == -1)	// Write image marker
+					LPC_GPIO1->DATA &= ~(1<<8);		// DEBUG: Yellow LED shouldn't turn on
 			} else {
 				pixel_pair = pixel << 4;
 			}
@@ -151,7 +147,6 @@ uint8_t new_file() {
 
     if (fr != FR_OK)
     	return fr;
-    	//return 1;
 
     return 0;
 }

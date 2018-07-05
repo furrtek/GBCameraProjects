@@ -31,9 +31,6 @@
 #define CMD55	(0x40+55)	/* APP_CMD */
 #define CMD58	(0x40+58)	/* READ_OCR */
 
-// #define	FCLK_SLOW()					/* Set slow clock (100k-400k) */
-// #define	FCLK_FAST()					/* Set fast clock (depends on the CSD) */
-
 #define FDELAY(ms) systickDelay(ms)     // Assumes delay = 1ms, ugly
 
 /*--------------------------------------------------------------------------
@@ -197,22 +194,9 @@ static BOOL select(void) {
 /* When the target system does not support socket power control, there   */
 /* is nothing to do in these functions and chk_power always returns 1.   */
 
-/*static
-void power_on (void)
-{
-}*/
-
-/*static
-void power_off (void)
-{
-}*/
-
-static
-int chk_power(void)		/* Socket power state: 0=off, 1=on */
-{
+static int chk_power(void)	{
 	return 1;
 }
-
 
 
 /*-----------------------------------------------------------------------*/
@@ -225,17 +209,12 @@ static BOOL rcvr_datablock (
 ) {
 	BYTE token;
 
-	/*do {
+	// Wait for data start token
+	Timer1 = 2000;
+	do {
 		token = rcvr_spi();
-	} while (token == 0);*/
-
-	//if (token != 0xFE) {
-		Timer1 = 2000;
-		do {
-			token = rcvr_spi();
-			Timer1--;
-		} while ((token == 0xFF) && Timer1);
-	//}
+		Timer1--;
+	} while ((token == 0xFF) && Timer1);
 
 	if (token != 0xFE)
 		return FALSE;	/* If not valid data token, return with error */
@@ -245,7 +224,7 @@ static BOOL rcvr_datablock (
 		rcvr_spi_m(buff++);
 		rcvr_spi_m(buff++);
 		rcvr_spi_m(buff++);
-	} while (btr -= 4);	//4);
+	} while (btr -= 4);
 	rcvr_spi();						/* Discard CRC */
 	rcvr_spi();
 
@@ -271,26 +250,17 @@ static BOOL xmit_datablock (
 
 	xmit_spi(token);					/* Xmit data token */
 	if (token != 0xFD) {				/* Is not stop token */
-		/*wc = 0;
-		do {							// Xmit the 512 byte data block to MMC
-			xmit_spi(*buff++);
-			xmit_spi(*buff++);
-		} while (--wc);*/
 		for (wc = 0; wc < 512; wc++)
 			xmit_spi(buff[wc]);
 		xmit_spi(0xFF);					/* CRC (Dummy) */
 		xmit_spi(0xFF);
 
-		//do {
-			resp = rcvr_spi();			// Much time was lost here...
-		//} while ((resp == 0x00) || (resp == 0xFF));
+		resp = rcvr_spi();			// Much time was lost here...
 
-		//if ((resp & 0x1F) == 0x1F)
-		//	for(;;){};	//DEBUG
-			rcvr_spi();
-			rcvr_spi();
+		rcvr_spi();
+		rcvr_spi();
 
-		if ((resp & 0x1F) != 0x05)
+		if ((resp & 0x1F) != 0x05)	// Data accepted ?
 			return FALSE;
 
 		wait_ready();
@@ -339,15 +309,10 @@ static BYTE send_cmd (
 
 	/* Receive command response */
 	if (cmd == CMD12) rcvr_spi();		/* Skip a stuff byte when stop reading */
-	n = 250;							/* Wait for a valid response in timeout of 10 attempts */
+	n = 250;							/* Wait for a valid response in timeout of 250 attempts */
 	do
 		res = rcvr_spi();
 	while ((res & 0x80) && --n);
-
-	/*if (cmd == CMD24) {
-		deselect();
-		xmit_spi(0xFF);
-	}*/
 
 	return res;			/* Return with the response value */
 }
@@ -492,10 +457,8 @@ DRESULT disk_write (
 		if ((r == 0)	/* WRITE_BLOCK */
 			&& xmit_datablock(buff, 0xFE))
 			count = 0;
-
-		//if (r == 0)	// ==0xFFyes
-		//	LPC_GPIO1->DATA &= ~(1<<8);		// Yellow LED on DEBUG
 	} else {				/* Multiple block write */
+		// This part may be useless since FatFS isn't supposed to write more than a sector at a time
 		if (CardType & CT_SDC) send_cmd(ACMD23, count);
 		if (send_cmd(CMD25, sector) == 0) {	/* WRITE_MULTIPLE_BLOCK */
 			do {

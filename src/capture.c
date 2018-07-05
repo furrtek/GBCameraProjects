@@ -266,8 +266,6 @@ void capture_loop() {
 		    }
 
 			lcd_print(24, 216, file_list[0].file_name, COLOR_WHITE, 0);
-			//if (mode == MODE_VIDEO)
-			//	lcd_paint(192, 64, icon_rec, 1);	// Display "REC" icon
 			LPC_GPIO1->DATA &= ~(1<<5);		// Red LED on
 
 			frame_tick = 0;
@@ -301,7 +299,8 @@ void capture_loop() {
 			video_frame_count += (skipped + 1);
 			skipped = 0;
 
-			// DEBUG:
+			// DEBUG: This shouldn't have to be done !
+			// Somehow, the ADC interrupt breaks f_write
 		    NVIC->ICER[0] = 0xFFFFFFFFUL;
 		    NVIC->ICER[1] = 0xFFFFFFFFUL;
 		    //NVIC->ICER[1] |= (1<<17);
@@ -365,8 +364,6 @@ void capture_loop() {
 	if (state == STATE_STOP) {
 		// Recording stop request
 		LPC_TMR32B0->TCR = 0;
-		//if (mode == MODE_VIDEO)
-		//	lcd_fill(192, 64, 32, 32, COLOR_GREY);	// Hide "REC" icon
 		LPC_GPIO1->DATA |= (1<<5);		// Red LED off
 		state = STATE_IDLE;
 		f_lseek(&file, 4);

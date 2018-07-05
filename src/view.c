@@ -143,8 +143,7 @@ void view_view() {
 void view_loop() {
 	uint16_t br;
 
-	systick = 0;
-	while (systick < 2);	// 20ms
+	systick_wait(2);	// 20ms
 
 	read_inputs();
 

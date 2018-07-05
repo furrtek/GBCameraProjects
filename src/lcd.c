@@ -15,23 +15,10 @@
 #include "lcd.h"
 #include "io.h"
 
-void lcd_write_byte(uint8_t v) {
-	uint8_t dummy;
+void lcd_write_byte(const uint8_t v) {
+	uint32_t dummy;
 
-	LPC_SSP->CR0 = 0x0007;			// 8bit transfers
-
-	while (!(LPC_SSP->SR & 0x02));
-	LPC_SSP->DR = v;
-	while ((LPC_SSP->SR & 0x10));
-	dummy = LPC_SSP->DR;
-
-	(void)dummy;
-}
-
-void lcd_write_word(uint16_t v) {
-	uint8_t dummy;
-
-	LPC_SSP->CR0 = 0x000F;			// 16bit transfers
+	LPC_SSP->CR0 = 0x0007;			// 8bit transfer
 
 	while (!(LPC_SSP->SR & 0x02));
 	LPC_SSP->DR = v;
@@ -41,11 +28,21 @@ void lcd_write_word(uint16_t v) {
 	(void)dummy;
 }
 
-void lcd_writecommand(uint8_t c) {
-	LPC_SSP->CR0 = 0x0007;			// 8bit transfers
+void lcd_write_word(const uint16_t v) {
+	uint32_t dummy;
 
-	LPC_GPIO0->DATA &= ~(1<<7);		// D/C low
-	LPC_GPIO0->DATA &= ~(1<<10);	// CLK low
+	LPC_SSP->CR0 = 0x000F;			// 16bit transfer
+
+	while (!(LPC_SSP->SR & 0x02));
+	LPC_SSP->DR = v;
+	while ((LPC_SSP->SR & 0x10));
+	dummy = LPC_SSP->DR;
+
+	(void)dummy;
+}
+
+void lcd_writecommand(const uint8_t c) {
+	LPC_GPIO0->DATA &= ~(1<<7 | 1<<10);	// D/C and CLK low
 	LPC_GPIO0->DATA &= ~(1<<5);		// LCDCS low
 
 	lcd_write_byte(c);
@@ -53,9 +50,7 @@ void lcd_writecommand(uint8_t c) {
 	LPC_GPIO0->DATA |= (1<<5);		// LCDCS high
 }
 
-void lcd_writedata(uint8_t c) {
-	LPC_SSP->CR0 = 0x0007;			// 8bit transfers
-
+void lcd_writedata(const uint8_t c) {
 	LPC_GPIO0->DATA |= (1<<7);		// D/C high
 	LPC_GPIO0->DATA &= ~(1<<10);	// CLK low
 	LPC_GPIO0->DATA &= ~(1<<5);		// LCDCS low
@@ -68,7 +63,7 @@ void lcd_writedata(uint8_t c) {
 uint8_t hexify(uint8_t d) {
 	if (d > 9)
 		d += 7;
-	return 0x30 + d;
+	return '0' + d;
 }
 
 const uint8_t lcd_init_data[] = {
@@ -87,9 +82,9 @@ const uint8_t lcd_init_data[] = {
 	0
 };
 
-void lcd_init(void) {
-	uint16_t c;
-	uint8_t cmd, a, args;
+void lcd_init() {
+	uint32_t c, args;
+	uint8_t cmd;
 
 	LPC_GPIO0->DATA |= (1<<2);		// RST high
 	delay_us(100);
@@ -111,34 +106,32 @@ void lcd_init(void) {
 	while ((cmd = lcd_init_data[c++])) {
 		lcd_writecommand(cmd);
 		args = lcd_init_data[c++];
-		if (args) {
-			for (a = 0; a < args; a++)
-				lcd_writedata(lcd_init_data[c++]);
-		}
+		while (args--)
+			lcd_writedata(lcd_init_data[c++]);
 	}
 }
 
-void lcd_locate(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
-	uint16_t x_end = x + w - 1;
-	uint16_t y_end = y + h - 1;
+void lcd_locate(const uint32_t x, const uint32_t y, const uint32_t w, const uint32_t h) {
+	uint32_t x_end = x + w - 1;
+	uint32_t y_end = y + h - 1;
 
 	lcd_writecommand(0x2A); 		// Column address
 	lcd_writedata(x >> 8);			// X start
-	lcd_writedata(x & 0xFF);
+	lcd_writedata(x);
 	lcd_writedata(x_end >> 8);		// X end
-	lcd_writedata(x_end & 0xFF);
+	lcd_writedata(x_end);
 
 	lcd_writecommand(0x2B);			// Row address
 	lcd_writedata(y >> 8);			// Y start
-	lcd_writedata(y & 0xFF);
+	lcd_writedata(y);
 	lcd_writedata(y_end >> 8);		// Y end
-	lcd_writedata(y_end & 0xFF);
+	lcd_writedata(y_end);
 }
 
-void lcd_print(uint16_t x, uint16_t y, char * str, uint16_t color, uint8_t large) {
-	uint8_t c, v, data;
+void lcd_print(uint32_t x, const uint32_t y, char * str, const uint16_t color, const uint32_t large) {
+	uint32_t c, v, gradient;
+	uint8_t data;
 	const unsigned char * data_ptr;
-	uint16_t gradient;
 
 	while (*str) {
 		if (!large)
@@ -153,14 +146,13 @@ void lcd_print(uint16_t x, uint16_t y, char * str, uint16_t color, uint8_t large
 		data_ptr = font + (((*str) - 32) << 3);
 		if (!large) {
 			for (c = 0; c < 8; c++) {
-				data = *data_ptr;
+				data = *data_ptr++;
 				for (v = 0; v < 8; v++) {
 					if (data & (1 << v))
 						lcd_write_word(color);
 					else
 						lcd_write_word(COLOR_BLACK);
 				}
-				data_ptr++;
 			}
 		} else {
 			gradient = 0b1111111111111111;
@@ -189,11 +181,9 @@ void lcd_print(uint16_t x, uint16_t y, char * str, uint16_t color, uint8_t large
 		x += (8 << large);
 		str++;
 	}
-
-	//LPC_GPIO0->DATA |= (1<<5);	// LCDCS high
 }
 
-void lcd_print_time(uint16_t x, uint16_t y) {
+void lcd_print_time(const uint32_t x, const uint32_t y) {
 	str_buffer[0] = 0x30 + (hours / 10);
 	str_buffer[1] = 0x30 + (hours % 10);
 	str_buffer[2] = ':';
@@ -206,7 +196,7 @@ void lcd_print_time(uint16_t x, uint16_t y) {
 	lcd_print(x, y, str_buffer, COLOR_WHITE, 0);
 }
 
-void lcd_fill_common(uint32_t l, uint16_t color) {
+void lcd_fill_common(const uint32_t l, const uint16_t color) {
 	uint32_t c;
 
 	lcd_writecommand(0x2C); 		// Write to RAM
@@ -219,19 +209,19 @@ void lcd_fill_common(uint32_t l, uint16_t color) {
 	LPC_GPIO0->DATA |= (1<<5);		// LCDCS high
 }
 
-void lcd_hline(uint16_t x, uint16_t y, uint16_t l, uint16_t color) {
+void lcd_hline(const uint32_t x, const uint32_t y, const uint32_t l, const uint32_t color) {
 	lcd_locate(x, y, l, 1);
 	lcd_fill_common(l, color);
 }
 
-void lcd_vline(uint16_t x, uint16_t y, uint16_t l, uint16_t color) {
+void lcd_vline(const uint32_t x, const uint32_t y, const uint32_t l, const uint32_t color) {
 	lcd_locate(x, y, 1, l);
 	lcd_fill_common(l, color);
 }
 
-void lcd_paint(uint16_t x, uint16_t y, const uint8_t * bitmap, uint8_t large) {
+void lcd_paint(uint32_t x, uint32_t y, const uint8_t * bitmap, const uint32_t large) {
 	uint16_t palette[16];
-	uint16_t c, w, h, line;
+	uint32_t c, w, h, line;
 	uint8_t color;
 
 	w = bitmap[0];
@@ -246,11 +236,9 @@ void lcd_paint(uint16_t x, uint16_t y, const uint8_t * bitmap, uint8_t large) {
 
 	// Load and convert palette
 	for (c = 0; c < 16; c++) {
-		color = bitmap[c];
+		color = *bitmap++;
 		palette[c] = ((color & 0xE7) << 8) + (color & 0x18);
 	}
-
-	bitmap += 16;	// Skip palette
 
 	// Draw bitmap
 	w >>= 1;
@@ -275,15 +263,15 @@ void lcd_paint(uint16_t x, uint16_t y, const uint8_t * bitmap, uint8_t large) {
 	LPC_GPIO0->DATA |= (1<<5);	// LCDCS high
 }
 
-void lcd_fill(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
+void lcd_fill(const uint32_t x, const uint32_t y, const uint32_t w, const uint32_t h, const uint16_t color) {
 	lcd_locate(x, y, w, h);
 	lcd_fill_common(w * h, color);
 }
 
-void lcd_preview(uint16_t x, uint16_t y) {
-	uint8_t data_l, data_h, pixel;
-	uint8_t xt, yt, xp, p;
-	uint16_t addr, yto;
+void lcd_preview(const uint32_t x, const uint32_t y) {
+	uint32_t data_l, data_h, pixel;
+	uint32_t xt, yt, xp, p;
+	uint32_t addr, yto;
 
 	luma_acc = 0;
 	for (p = 0; p < 4; p++)
@@ -335,9 +323,8 @@ void lcd_clear() {
 }
 
 void fade_in() {
-	while (backlight < 2200) {
-		systick = 0;
-		while (systick < 1);	// 10ms
+	while (backlight < 300) {	// 2200
+		systick_wait(1);	// 10ms
 
 		backlight += 100;
 
@@ -347,8 +334,7 @@ void fade_in() {
 
 void fade_out(void (*func)(void)) {
 	while (backlight) {
-		systick = 0;
-		while (systick < 1);	// 10ms
+		systick_wait(1);	// 10ms
 
 		if (backlight >= 100)
 			backlight -= 100;
