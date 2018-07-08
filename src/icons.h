@@ -1,11 +1,14 @@
 /*
- * icons.h
- *
- *  Created on: 12 oct. 2015
- *      Author: furrtek
- *
- *  Use bmptile2array for conversion
- */
+===============================================================================
+ Name        : GBCamcorder
+ Author      : furrtek
+ Version     : 0.3
+ Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
+ Description : GameBoy Camcorder firmware
+===============================================================================
+*/
+
+// Use bmptile2array for conversion
 
 #ifndef ICONS_H_
 #define ICONS_H_

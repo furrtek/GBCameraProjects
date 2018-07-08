@@ -1,3 +1,16 @@
+/*
+===============================================================================
+ Name        : GBCamcorder
+ Author      : furrtek
+ Version     : 0.3
+ Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
+ Description : GameBoy Camcorder firmware
+===============================================================================
+*/
+
+#ifndef COLORS_H_
+#define COLORS_H_
+
 #include "main.h"
 
 #define COLOR_RED 		0b1111100000000000
@@ -10,9 +23,15 @@
 #define COLOR_GREY		0b0111101111101111
 #define COLOR_BLACK		0b0000000000000000
 
-const uint16_t lut_2bpp_grey[4];
-const uint16_t lut_2bpp_dmg[4];
-const uint16_t lut_2bpp_cgb[4];
-const uint16_t * lut_2bpp_list[3];
+#define MAX_PALETTES 7
+
+typedef struct {
+	char * name;
+	uint16_t colors[4];
+} palette_t;
+
+const palette_t * palettes_list[MAX_PALETTES];
 
 const uint16_t bar_colors[8];
+
+#endif /* COLORS_H_ */

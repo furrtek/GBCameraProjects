@@ -1,9 +1,12 @@
 /*
- * sdcard.h
- *
- *  Created on: 26 sept. 2015
- *      Author: furrtek
- */
+===============================================================================
+ Name        : GBCamcorder
+ Author      : furrtek
+ Version     : 0.3
+ Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
+ Description : GameBoy Camcorder firmware
+===============================================================================
+*/
 
 #include <string.h>
 #include "LPC13xx.h"

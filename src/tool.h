@@ -18,5 +18,3 @@ void view_loop(void);
 void view_view(void);
 void sram_loop(void);
 void sram_view(void);
-void tool_view(void);
-void tool_loop(void);

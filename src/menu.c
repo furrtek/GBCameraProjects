@@ -10,6 +10,7 @@
 #include "main.h"
 #include "views.h"
 #include "capture.h"
+#include "tool.h"
 #include "colors.h"
 #include "io.h"
 #include "icons.h"
@@ -38,9 +39,8 @@ void func_view(void) {
 void func_sram(void) {
 	fade_out(sram_view);
 }
-void func_settings(void) {
-	mode = MODE_SETTINGS;
-	fade_out(capture_view);
+void func_tool(void) {
+	fade_out(tool_view);
 }
 void func_about(void) {
 	fade_out(about_view);
@@ -50,8 +50,8 @@ static const menu_item_t menu_items[6] = {
 	{ 96+0*24, "Photo",	COLOR_RED, func_photo },
 	{ 96+1*24, "Video",	COLOR_ORANGE, func_video },
 	{ 96+2*24, "View",	COLOR_GREEN, func_view },
-	{ 96+3*24, "SRAM dump",	COLOR_YELLOW, func_sram },
-	{ 96+4*24, "Settings",	COLOR_CYAN, func_settings },
+	{ 96+3*24, "Dump",	COLOR_YELLOW, func_sram },
+	{ 96+4*24, "Game tool",	COLOR_CYAN, func_tool },
 	{ 96+5*24, "About",	COLOR_BLUE, func_about }
 };
 
@@ -89,11 +89,11 @@ void menu_draw() {
 void menu_slot_func(void) {
 	if (sd_ok) {
 		menu_item_enabled[2] = 1;
+		menu_item_enabled[4] = 1;
 		if (gbcam_ok) {
 			menu_item_enabled[0] = 1;
 			menu_item_enabled[1] = 1;
 			menu_item_enabled[3] = 1;
-			menu_item_enabled[4] = 1;
 		}
 	}
 

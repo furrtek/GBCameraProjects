@@ -1,9 +1,12 @@
 /*
- * lcd.h
- *
- *  Created on: 12 oct. 2015
- *      Author: furrtek
- */
+===============================================================================
+ Name        : GBCamcorder
+ Author      : furrtek
+ Version     : 0.3
+ Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
+ Description : GameBoy Camcorder firmware
+===============================================================================
+*/
 
 #ifndef LCD_H_
 #define LCD_H_

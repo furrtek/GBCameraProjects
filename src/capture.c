@@ -2,11 +2,12 @@
 ===============================================================================
  Name        : GBCamcorder
  Author      : furrtek
- Version     : 0.2
+ Version     : 0.3
  Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
  Description : GameBoy Camcorder firmware
 ===============================================================================
 */
+
 #include <string.h>
 #include "main.h"
 #include "views.h"
@@ -19,16 +20,16 @@
 #include "capture.h"
 
 void set_palette() {
-	lut_2bpp = lut_2bpp_list[palette_number];
+	lut_2bpp = palettes_list[palette_number];
 }
 
 void update_gain() {
-	uint16_t c;
+	uint32_t c;
 
-	gbcam_put(0x4000, 0x10);		// ASIC registers
+	cart_put(0x4000, 0x10);		// ASIC registers
 	delay_us(10);
 
-	gbcam_put(0xA001, gain >> 4);	// Sensor gain
+	cart_put(0xA001, gain >> 4);	// Sensor gain
 
 	// Display gain bar
 	c = 76 + (gain >> 1);
@@ -44,7 +45,7 @@ void capture_slot_func(void) {
 }
 
 void capture_view() {
-	uint16_t c;
+	uint32_t c;
 
 	if (mode == MODE_PHOTO)
 		set_filename("GBCAM000.BMP");
@@ -105,14 +106,14 @@ void capture_view() {
     gbcam_setexposure(exposure);
 
     // Clear GB Cam scratchpad RAM (bank 0, A000~AFFF)
-    gbcam_put(0x4000, 0x00);		// SRAM bank 0
-    gbcam_put(0x0000, 0x0A);		// Enable SRAM writes
+    cart_put(0x4000, 0x00);		// SRAM bank 0
+    cart_put(0x0000, 0x0A);		// Enable SRAM writes
     for (c = 0xA000; c < 0xB000; c++)
-    	gbcam_put(c, 0x00);
+    	cart_put(c, 0x00);
 
     update_gain();
-    gbcam_put(0xA004, 0x46);		// Edge enhance 200%
-    gbcam_put(0xA005, 0x9F);		// Dark level calibration 9F TESTING
+    cart_put(0xA004, 0x46);		// Edge enhance 200%
+    cart_put(0xA005, 0x9F);		// Dark level calibration 9F TESTING
 
 	prev_expo_status = EXPO_INRANGE;
     cursor_prev = 1;
@@ -129,7 +130,7 @@ void capture_loop() {
 	uint16_t c;
 	char sn_marker[2] = {'A', 0};			// Audio (# of blocks)
 	char im_marker[2] = {'V', 0};			// Video (# of skipped frames since last one)
-	uint8_t expo_status, p;
+	uint32_t expo_status, p;
 	int16_t histogram_shape;
 	int32_t luma_delta;
 	uint16_t br;
@@ -144,23 +145,13 @@ void capture_loop() {
 		} else if (inputs_active & BTN_UP) {
 			if (cursor > 0)
 				cursor--;
-		} else if (inputs_active & BTN_LEFT) {
-			if (palette_number)
-				palette_number--;
-			/*gbcam_setcontrast(picture_number);
-		    gbcam_setmatrix();*/
-			set_palette();	// TODO: This should only work when cursor == 1
-		} else if (inputs_active & BTN_RIGHT) {
-			if (palette_number < 2)
-				palette_number++;
-			/*gbcam_setcontrast(picture_number);
-		    gbcam_setmatrix();*/
-			set_palette();	// TODO: This should only work when cursor == 1
 		} else if (inputs_active & BTN_A) {
 			if (cursor == 0) {
+				// Start recording
 				if (gbcam_ok && sd_ok)
 					state = STATE_START;
 			} else if (cursor == 2) {
+				// Exit
 				// Turn off ADC
 			    LPC_ADC->CR = 0;
 			    NVIC->ICER[1] |= (1<<17);
@@ -168,6 +159,18 @@ void capture_loop() {
 
 				fade_out(menu_view);
 				return;
+			}
+		}
+
+		if (cursor == 1) {
+			if (inputs_active & BTN_LEFT) {
+				if (palette_number)
+					palette_number--;
+				set_palette();
+			} else if (inputs_active & BTN_RIGHT) {
+				if (palette_number < MAX_PALETTES - 1)
+					palette_number++;
+				set_palette();
 			}
 		}
 	} else if (state == STATE_REC) {
@@ -182,22 +185,20 @@ void capture_loop() {
 	}
 
 	if (palette_number != prev_palette_number) {
-		str_buffer[0] = 'A' + palette_number;
-		str_buffer[1] = 0;
-		lcd_print(32+128, 256+24, str_buffer, COLOR_YELLOW, 1);
+		lcd_print(32+128, 256+24, palettes_list[palette_number]->name, COLOR_YELLOW, 1);
 		prev_palette_number = palette_number;
 	}
 
 	// Read scratchpad to picture buffer
-	gbcam_put(0x4000, 0x00);	// SRAM bank 0
+	cart_put(0x4000, 0x00);	// SRAM bank 0
 	delay_us(2);
 	for (c = 0; c < FRAME_SIZE; c++)
-		picture_buffer[c] = gbcam_get_ram(0xA100 + c) ^ 0xFF;
+		picture_buffer[c] = cart_get_ram(0xA100 + c) ^ 0xFF;
 
 	// Ask ASIC for capture
-	gbcam_put(0x4000, 0x10);	// ASIC registers
+	cart_put(0x4000, 0x10);	// ASIC registers
 	delay_us(2);
-	gbcam_put(0xA000, 0x03);
+	cart_put(0xA000, 0x03);
 
 	// Wait for capture to start
 	gbcam_wait_busy();
@@ -229,7 +230,7 @@ void capture_loop() {
 	lcd_fill(208, 148, 14, 28, COLOR_GREY);
 	for (p = 0; p < 4; p++) {
 		c = histogram[p] >> 9;
-		lcd_fill(208 + (p << 2), 148 + (28 - c), 2, c + 1, lut_2bpp[p]);
+		lcd_fill(208 + (p << 2), 148 + (28 - c), 2, c + 1, lut_2bpp->colors[p]);
 	}
 
 	// Display audio level
@@ -256,6 +257,7 @@ void capture_loop() {
 
 	if (state == STATE_START) {
 		// Recording start request
+		FCLK_FAST();
 		fr = new_file();
 		if (!fr) {
 		    if (mode == MODE_VIDEO) {
@@ -301,14 +303,14 @@ void capture_loop() {
 
 			// DEBUG: This shouldn't have to be done !
 			// Somehow, the ADC interrupt breaks f_write
-		    NVIC->ICER[0] = 0xFFFFFFFFUL;
-		    NVIC->ICER[1] = 0xFFFFFFFFUL;
-		    //NVIC->ICER[1] |= (1<<17);
+		    //NVIC->ICER[0] = 0xFFFFFFFFUL;
+		    //NVIC->ICER[1] = 0xFFFFFFFFUL;
+		    NVIC->ICER[1] |= (1<<17);
 
 		    if (mode == MODE_VIDEO) {
 				f_write(&file, &im_marker, 2, &br);		// Write image marker
 
-				for (c = 0; c < 7; c++)					// Write image data (FATFS doesn't like writing more than 512 bytes at a time)
+				for (c = 0; c < 7; c++)					// Write image data (FATFS can't write more than 512 bytes at a time)
 					f_write(&file, &picture_buffer[512 * c], 512, &br);
 
 				if (audio_fifo_ready) {
@@ -332,6 +334,9 @@ void capture_loop() {
 		    	save_bmp();
 				state = STATE_STOP;
 			}
+
+		    // DEBUG
+		    NVIC->ISER[1] |= (1<<17);
 
 			//LPC_GPIO1->DATA |= (1<<8);		// Yellow LED off
 		}
@@ -366,9 +371,11 @@ void capture_loop() {
 		LPC_TMR32B0->TCR = 0;
 		LPC_GPIO1->DATA |= (1<<5);		// Red LED off
 		state = STATE_IDLE;
-		f_lseek(&file, 4);
-		f_write(&file, &video_frame_count, 4, &br);	// WARNING: This takes skipped frames into account
-		f_write(&file, &audio_frame_count, 4, &br);
+		if (mode == MODE_VIDEO) {
+			f_lseek(&file, 4);
+			f_write(&file, &video_frame_count, 4, &br);	// WARNING: This takes skipped frames into account
+			f_write(&file, &audio_frame_count, 4, &br);
+		}
 		f_close(&file);
 	}
 

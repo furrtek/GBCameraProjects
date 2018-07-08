@@ -1,19 +1,21 @@
 /*
 ===============================================================================
  Name        : GBCamcorder
+
  Author      : furrtek
- Version     : 0.2
+ Version     : 0.3
  Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
  Description : GameBoy Camcorder firmware
 ===============================================================================
 */
+
 #ifndef MAIN_H_
 #define MAIN_H_
 
 #include "LPC13xx.h"
 #include "ff.h"
 
-#define FW_STRING "FW 26062018"
+#define FW_STRING "FW 08072018"
 
 #define MAX_AUDIO_BUFFERS 5
 

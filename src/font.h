@@ -1,9 +1,12 @@
 /*
- * font.h
- *
- *  Created on: 20 sept. 2015
- *      Author: furrtek
- */
+===============================================================================
+ Name        : GBCamcorder
+ Author      : furrtek
+ Version     : 0.3
+ Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
+ Description : GameBoy Camcorder firmware
+===============================================================================
+*/
 
 #ifndef FONT_H_
 #define FONT_H_

@@ -2,7 +2,7 @@
 ===============================================================================
  Name        : GBCamcorder
  Author      : furrtek
- Version     : 0.2
+ Version     : 0.3
  Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
  Description : GameBoy Camcorder firmware
 ===============================================================================
@@ -26,10 +26,12 @@ uint8_t list_files(uint16_t page) {
 
     c = 0;
     ff = page * 8;
+	FCLK_FAST();
     fr = f_opendir(&dir, "/");
 
     if (fr == FR_OK) {
         for (;;) {
+    		FCLK_FAST();
         	fr = f_readdir(&dir, &file_info);
             if (file_info.fname[0] == 0)
             	break;
@@ -37,9 +39,10 @@ uint8_t list_files(uint16_t page) {
             //	break;
             //if (!ff) {
 				if (!(file_info.fattrib & AM_DIR)) {
-			        lcd_print(32, 32 + (c << 3), file_info.fname, COLOR_WHITE, 0);
+			        lcd_print(32, 216 + (c << 3), file_info.fname, COLOR_WHITE, 0);
 
-					/*fr = f_open(&file, file_info.fname, FA_READ);
+		    		FCLK_FAST();
+					fr = f_open(&file, file_info.fname, FA_READ);
 					if (fr == FR_OK) {
 						// Check file header
 						fr = f_read(&file, file_buffer, 4, &br);
@@ -55,13 +58,13 @@ uint8_t list_files(uint16_t page) {
 								file_list[c].duration /= 10000;
 							}
 							memcpy(&file_list[c].file_name, file_info.fname, 13);
-							c++;
+							//c++;
 						}
+						c++;
 						f_close(&file);
 						if (c == 8)
 							break;
-					}*/
-			        c++;	// DEBUG
+					}
 				}
             //} else {
             //	ff--;

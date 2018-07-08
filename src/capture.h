@@ -2,18 +2,20 @@
 ===============================================================================
  Name        : GBCamcorder
  Author      : furrtek
- Version     : 0.2
+ Version     : 0.3
  Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
  Description : GameBoy Camcorder firmware
 ===============================================================================
 */
+
 #ifndef CAPTURE_H_
 #define CAPTURE_H_
+
+#include "colors.h"
 
 // Capture modes
 #define MODE_VIDEO 0
 #define MODE_PHOTO 1
-#define MODE_SETTINGS 2
 
 // Capture states
 volatile enum state_t {
@@ -47,7 +49,7 @@ uint16_t histogram[4];
 uint32_t video_frame_count;
 uint32_t audio_frame_count;
 
-const uint16_t * lut_2bpp;
+const palette_t * lut_2bpp;
 uint8_t palette_number, prev_palette_number;
 uint16_t prev_gain_bar, prev_exp_bar;
 uint8_t prev_expo_status;

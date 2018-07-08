@@ -1,9 +1,12 @@
 /*
- * gbcam.c
- *
- *  Created on: 07 oct. 2015
- *      Author: furrtek
- */
+===============================================================================
+ Name        : GBCamcorder
+ Author      : furrtek
+ Version     : 0.3
+ Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
+ Description : GameBoy Camcorder firmware
+===============================================================================
+*/
 
 #include "LPC13xx.h"
 #include "main.h"
@@ -29,8 +32,8 @@ uint8_t qlevels[4];
 uint8_t gbcam_wait_busy() {
 	uint32_t timeout = 200000;
 
-	gbcam_put(0x4000, 0x10);			// ASIC registers
-	while (!(gbcam_get_ram(0xA000) & 1)) {
+	cart_put(0x4000, 0x10);			// ASIC registers
+	while (!(cart_get_ram(0xA000) & 1)) {
 		if (timeout)
 			timeout--;
 		else
@@ -42,8 +45,8 @@ uint8_t gbcam_wait_busy() {
 uint8_t gbcam_wait_idle() {
 	uint32_t timeout = 200000;
 
-	gbcam_put(0x4000, 0x10);			// ASIC registers
-	while (gbcam_get_ram(0xA000) & 1) {
+	cart_put(0x4000, 0x10);			// ASIC registers
+	while (cart_get_ram(0xA000) & 1) {
 		if (timeout)
 			timeout--;
 		else
@@ -52,7 +55,7 @@ uint8_t gbcam_wait_idle() {
 	return 0;
 }
 
-void gbcam_address(const uint16_t address) {
+void cart_set_address(const uint16_t address) {
 	LPC_GPIO1->DATA &= ~((1<<2) | (1<<3));				// ALEs both low
 	LPC_GPIO2->DATA |= ((1<<8) | (1<<9) | (1<<10));		// Make sure cart isn't asked anything
 	LPC_GPIO2->DIR |= 0xFF;				// GB bus: Output
@@ -82,10 +85,10 @@ void gbcam_address(const uint16_t address) {
 	LPC_GPIO1->DATA &= ~(1<<3);
 }
 
-uint8_t gbcam_get_ram(const uint16_t address) {
+uint8_t cart_get_ram(const uint16_t address) {
 	uint8_t v;
 
-	gbcam_address(address);
+	cart_set_address(address);
 
 	LPC_GPIO2->DIR &= ~(0xFF);			// GB bus: Input
 
@@ -113,16 +116,16 @@ uint8_t gbcam_get_ram(const uint16_t address) {
 	return v;
 }
 
-uint8_t gbcam_get_rom(const uint16_t address) {
+uint8_t cart_get_rom(const uint16_t address) {
 	uint8_t v;
 
-	gbcam_address(address);
+	cart_set_address(address);
 
-	LPC_GPIO2->DATA |= (1<<9);			// CS high
 	LPC_GPIO2->DIR &= ~(0xFF);			// GB bus: Input
+	LPC_GPIO2->DATA |= (1<<9);			// CS high
 	LPC_GPIO2->DATA &= ~(1<<10);		// RD low
 
-	delay_us(15);						// TODO: ROM shouldn't be so slow :(
+	delay_us(20);						// TODO: ROM shouldn't be so slow :(
 
 	v = LPC_GPIO2->DATA & 0xFF;			// Read data bus
 	LPC_GPIO2->DATA |= (1<<10);			// RD high
@@ -130,8 +133,8 @@ uint8_t gbcam_get_rom(const uint16_t address) {
 	return v;
 }
 
-void gbcam_put(const uint16_t address, const uint8_t value) {
-	gbcam_address(address);
+void cart_put(const uint16_t address, const uint8_t value) {
+	cart_set_address(address);
 	delay_us(1);						// TODO: Make shorter ?
 
 	LPC_GPIO2->DIR |= 0xFF;				// GB bus: Output
@@ -157,14 +160,14 @@ void gbcam_put(const uint16_t address, const uint8_t value) {
 // Returns 0 if GB Cam is detected
 uint8_t gbcam_detect(void) {
 	const char rom_name[14] = "GAMEBOYCAMERA";
-	uint8_t c;
+	uint32_t c;
 
-	gbcam_put(0x0000, 0x0A);			// Initialize MBC, allow writing to RAM
+	cart_put(0x0000, 0x0A);			// Initialize MBC, allow writing to RAM
 	delay_us(5000);
 
 	// Check for ID string in ROM bank 0
 	for (c = 0; c < 13; c++) {
-		if (gbcam_get_rom(c + 0x0134) != rom_name[c])
+		if (cart_get_rom(c + 0x0134) != rom_name[c])
 			return 1;
 	}
 
@@ -216,19 +219,19 @@ void gbcam_setmatrix() {
 		}
     }
 
-    gbcam_put(0x4000, 0x10);			// ASIC registers
+    cart_put(0x4000, 0x10);			// ASIC registers
 	delay_us(100);
 	gbcam_wait_idle();
 
 	for (c = 0; c < 48; c++)
-		gbcam_put(c + 0xA006, gbcam_matrix[c]);
+		cart_put(c + 0xA006, gbcam_matrix[c]);
 }
 
 void gbcam_setexposure(const uint16_t exposure) {
-	gbcam_put(0x4000, 0x10);			// ASIC registers
+	cart_put(0x4000, 0x10);			// ASIC registers
 	delay_us(100);
 	gbcam_wait_idle();
 
-	gbcam_put(0xA002, exposure >> 8);
-	gbcam_put(0xA003, exposure & 0xFF);
+	cart_put(0xA002, exposure >> 8);
+	cart_put(0xA003, exposure & 0xFF);
 }

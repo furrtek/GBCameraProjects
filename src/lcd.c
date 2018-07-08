@@ -311,7 +311,7 @@ void lcd_preview(const uint32_t x, const uint32_t y) {
 			luma_acc += pixel;
 
 			// 2bpp to RGB
-			lcd_write_word(lut_2bpp[pixel]);
+			lcd_write_word(lut_2bpp->colors[pixel]);
 		}
 	}
 
@@ -323,7 +323,7 @@ void lcd_clear() {
 }
 
 void fade_in() {
-	while (backlight < 300) {	// 2200
+	while (backlight < 400) {
 		systick_wait(1);	// 10ms
 
 		backlight += 100;

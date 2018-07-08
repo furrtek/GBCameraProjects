@@ -2,7 +2,7 @@
 ===============================================================================
  Name        : GBCamcorder
  Author      : furrtek
- Version     : 0.2
+ Version     : 0.3
  Copyright   : CC Attribution-NonCommercial-ShareAlike 4.0
  Description : GameBoy Camcorder firmware
 ===============================================================================
@@ -52,12 +52,9 @@ void set_filename(const char * filename) {
 	memcpy(file_list[0].file_name, filename, 13);
 }
 
-const uint8_t bmp_colors[4] = {
-	0x00, 0x55, 0xAA, 0xFF
-};
-
 uint8_t save_bmp() {
-	uint16_t br;
+	uint32_t c;
+	uint16_t br, color;
 	uint8_t data_l, data_h, pixel;
 	uint8_t xt, yt, yt_flip, xp, pixel_pair = 0;
 	uint16_t addr, yto;
@@ -66,13 +63,14 @@ uint8_t save_bmp() {
 	f_write(&file, &bmp_header, 54, &br);
 
 	// Write palettes
-	for (uint32_t c = 0; c < 4; c++) {
-		f_putc(bmp_colors[c], &file);	// R
-		f_putc(bmp_colors[c], &file);	// G
-		f_putc(bmp_colors[c], &file);	// B
+	for (c = 0; c < 4; c++) {
+		color = lut_2bpp->colors[c];
+		f_putc((color << 3) & 0xF8, &file);		// B
+		f_putc((color >> 3) & 0xFC, &file);		// G
+		f_putc((color >> 8) & 0xF8, &file);		// R
 		f_putc(0, &file);
 	}
-	for (uint32_t c = 0; c < (12 * 4); c++)
+	for (c = 0; c < (12 * 4); c++)
 		f_putc(0, &file);
 
     // Write image data
