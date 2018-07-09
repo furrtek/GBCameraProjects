@@ -60,12 +60,6 @@ void lcd_writedata(const uint8_t c) {
 	LPC_GPIO0->DATA |= (1<<5);		// LCDCS high
 }
 
-uint8_t hexify(uint8_t d) {
-	if (d > 9)
-		d += 7;
-	return '0' + d;
-}
-
 const uint8_t lcd_init_data[] = {
 	0xC0, 2, 0x26, 0x04,
 	0xC1, 1, 0x04,
@@ -270,12 +264,14 @@ void lcd_fill(const uint32_t x, const uint32_t y, const uint32_t w, const uint32
 
 void lcd_preview(const uint32_t x, const uint32_t y) {
 	uint32_t data_l, data_h, pixel;
-	uint32_t xt, yt, xp, p;
+	uint32_t xt, yt, xp;
 	uint32_t addr, yto;
 
 	luma_acc = 0;
-	for (p = 0; p < 4; p++)
-		histogram[p] = 0;
+	histogram[0] = 0;
+	histogram[1] = 0;
+	histogram[2] = 0;
+	histogram[3] = 0;
 
 	lcd_locate(x, y, 128, 112);
 	lcd_writecommand(0x2C); 		// Write to RAM
@@ -323,7 +319,7 @@ void lcd_clear() {
 }
 
 void fade_in() {
-	while (backlight < 400) {
+	while (backlight < 800) {
 		systick_wait(1);	// 10ms
 
 		backlight += 100;

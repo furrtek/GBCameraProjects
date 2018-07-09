@@ -13,7 +13,6 @@
 
 #define COLOR565(r, g, b) (((r & 0xF8) << 8) | ((g & 0xFC) << 3) | ((b & 0xF8) >> 3))
 
-uint8_t hexify(uint8_t d);
 void lcd_init();
 void lcd_fill(const uint32_t x, const uint32_t y, const uint32_t w, const uint32_t h, const uint16_t color);
 void lcd_clear();

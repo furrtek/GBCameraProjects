@@ -67,6 +67,8 @@ void menu_move_cursor(const int8_t direction) {
 			cursor = MENU_MAX;
 
 	} while (!menu_item_enabled[cursor]);
+
+	MENU_BEEP
 }
 
 void menu_draw() {
@@ -130,6 +132,7 @@ void menu_loop() {
 	} else if (inputs_active & BTN_UP) {
 		menu_move_cursor(-1);
 	} else if (inputs_active & BTN_A) {
+		VALIDATE_BEEP
 		menu_items[cursor].func();
 		return;
 	}

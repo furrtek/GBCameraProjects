@@ -128,8 +128,8 @@ void capture_view() {
 
 void capture_loop() {
 	uint16_t c;
-	char sn_marker[2] = {'A', 0};			// Audio (# of blocks)
-	char im_marker[2] = {'V', 0};			// Video (# of skipped frames since last one)
+	char sn_marker[2] = { 'A', 0 };			// Audio (# of blocks)
+	char im_marker[2] = { 'V', 0 };			// Video (# of skipped frames since last one)
 	uint32_t expo_status, p;
 	int16_t histogram_shape;
 	int32_t luma_delta;
@@ -148,8 +148,10 @@ void capture_loop() {
 		} else if (inputs_active & BTN_A) {
 			if (cursor == 0) {
 				// Start recording
-				if (gbcam_ok && sd_ok)
+				if (gbcam_ok && sd_ok) {
+					VALIDATE_BEEP
 					state = STATE_START;
+				}
 			} else if (cursor == 2) {
 				// Exit
 				// Turn off ADC
@@ -157,6 +159,7 @@ void capture_loop() {
 			    NVIC->ICER[1] |= (1<<17);
 			    LPC_ADC->INTEN = 0;
 
+				VALIDATE_BEEP
 				fade_out(menu_view);
 				return;
 			}
@@ -167,10 +170,12 @@ void capture_loop() {
 				if (palette_number)
 					palette_number--;
 				set_palette();
+				MENU_BEEP
 			} else if (inputs_active & BTN_RIGHT) {
 				if (palette_number < MAX_PALETTES - 1)
 					palette_number++;
 				set_palette();
+				MENU_BEEP
 			}
 		}
 	} else if (state == STATE_REC) {
@@ -182,6 +187,7 @@ void capture_loop() {
 		lcd_fill(16, 256 + (cursor_prev * 24), 16, 16, COLOR_BLACK);
 		lcd_print(16, 256 + (cursor * 24), "#", COLOR_WHITE, 1);
 		cursor_prev = cursor;
+		if (state == STATE_IDLE) MENU_BEEP	// Should always be
 	}
 
 	if (palette_number != prev_palette_number) {
@@ -295,6 +301,8 @@ void capture_loop() {
 		if (frame_tick) {
 			frame_tick = 0;
 
+			LPC_GPIO1->DATA &= ~(1<<8);		// Yellow LED on
+
 			FCLK_FAST();
 
 			im_marker[1] = skipped;
@@ -338,7 +346,7 @@ void capture_loop() {
 		    // DEBUG
 		    NVIC->ISER[1] |= (1<<17);
 
-			//LPC_GPIO1->DATA |= (1<<8);		// Yellow LED off
+			LPC_GPIO1->DATA |= (1<<8);		// Yellow LED off
 		}
 
 		// Update recording time every second
@@ -372,6 +380,7 @@ void capture_loop() {
 		LPC_GPIO1->DATA |= (1<<5);		// Red LED off
 		state = STATE_IDLE;
 		if (mode == MODE_VIDEO) {
+			FCLK_FAST();
 			f_lseek(&file, 4);
 			f_write(&file, &video_frame_count, 4, &br);	// WARNING: This takes skipped frames into account
 			f_write(&file, &audio_frame_count, 4, &br);

@@ -109,10 +109,7 @@ void ADC_IRQHandler(void) {
 }
 
 void print_error(uint8_t x, uint8_t y, uint8_t fr) {
-	str_buffer[0] = hexify(fr >> 4);
-	str_buffer[1] = hexify(fr & 15);
-	str_buffer[2] = 0;
-
+	hex_insert(0, fr);
 	lcd_print(x, y, str_buffer, COLOR_RED, 1);
 }
 
@@ -120,6 +117,54 @@ void print_error(uint8_t x, uint8_t y, uint8_t fr) {
 void systick_wait(const uint32_t duration) {
 	systick = 0;
 	while (systick < duration);
+}
+
+uint8_t hexify(uint8_t d) {
+	if (d > 9)
+		d += 7;
+	return '0' + d;
+}
+
+void hex_insert(uint32_t pos, uint8_t d) {
+	str_buffer[pos] = hexify(d >> 4);
+	str_buffer[pos+1] = hexify(d & 15);
+	str_buffer[pos+2] = 0;
+}
+
+// 72000000/2/100 = 360000
+// MCR3 = 360000/x
+// MCR0 = MCR3*vol
+
+// Can't use beep while recording or playing ! TMR32B0 is used to generate the sampling frequency
+// Frequency in hertz
+// Duration in 10ms
+// Volume 0~255
+void beep(const uint32_t frequency, const uint32_t duration, const uint32_t volume) {
+	LPC_TMR32B0->TCR = 0;			// Disable timer
+	LPC_TMR32B0->TC = 0;
+	LPC_TMR32B0->PR = 100;
+	LPC_TMR32B0->PWMC = 1;			// Enable PWM for CT32B0_MAT0 output (TODO: Do this in init ?)
+	LPC_TMR32B0->MCR = 0x0400;		// Reset on match register 3
+	LPC_TMR32B0->MR0 = 90;			// Smol duty cycle 0.9
+	LPC_TMR32B0->MR3 = 100;			// 720Hz tone ?
+
+	LPC_IOCON->PIO1_6 = 2;			// Func: CT32B0_MAT0 (PWM audio out)
+	LPC_TMR32B0->TCR = 1;			// Enable timer
+
+	uint32_t period = 360000UL / frequency;
+	LPC_TMR32B0->MR3 = period;								// Frequency
+	LPC_TMR32B0->MR0 = period - ((period * volume) >> 8);	// Duty cycle
+	LPC_TMR32B0->TC = 0;
+
+	systick_wait(duration);
+
+	LPC_IOCON->PIO1_6 = 0;			// Func: PIO (PWM audio disabled)
+
+	LPC_TMR32B0->TCR = 0;			// Disable timer
+	LPC_TMR32B0->TC = 0;
+	LPC_TMR32B0->PR = 1099;
+	LPC_TMR32B0->MCR = 0x0002;		// Reset on match register 0
+	LPC_TMR32B0->MR0 = 3;			// Count 0~3 (/4)
 }
 
 void noop(void) {
@@ -165,7 +210,6 @@ int main(void) {
 	LPC_TMR32B0->PR = 1099;
 	LPC_TMR32B0->MCR = 0x0002;		// Reset on match register 0
 	LPC_TMR32B0->MR0 = 3;			// Count 0~3 (/4)
-	LPC_TMR32B0->EMR = (3<<4);		// Toggle pin on match register 0 (AUDIO DEBUG)
 	LPC_TMR32B0->TCR = 0;			// Don't enable yet
 
 	// TMR32B1 is used for LCD backlight PWM
@@ -194,7 +238,11 @@ int main(void) {
     gbcam_reset();
 
 	menu_view();
+
 	fade_in();
+
+	beep(900, 10, 40);
+	beep(1200, 10, 40);
 
 	while (1) {
 		loop_func();

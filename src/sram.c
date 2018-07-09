@@ -34,8 +34,9 @@ void sram_view() {
     palette_number = 0;
 	set_palette();
 
-	prev_picture_number = 1;
+	prev_picture_number = 1;		// Force update
     picture_number = 0;
+
     bank = 1;
     bank_offset = 0xA000;
     cursor_prev = 1;
@@ -66,7 +67,9 @@ void sram_loop() {
 	}
 
 	if (inputs_active & BTN_A) {
+		// Save
 		if (cursor == 0) {
+			VALIDATE_BEEP
 			FCLK_FAST();
 			fr = new_file();
 			if (!fr) {
@@ -82,6 +85,7 @@ void sram_loop() {
 				print_error(0, 0, fr);
 		} else if (cursor == 1) {
 			// Erase
+			VALIDATE_BEEP
 			cart_put(0x4000, bank);		// SRAM bank
 			delay_us(2);
 			cart_put(0x0000, 0x0A);		// Enable SRAM writes
@@ -92,9 +96,10 @@ void sram_loop() {
 		    prev_picture_number = picture_number + 1;	// Force refresh
 		} else if (cursor == 3) {
 			// Exit
+			VALIDATE_BEEP
 			fade_out(menu_view);
+			return;
 		}
-		return;
 	}
 
 	if (cursor == 2) {
@@ -119,6 +124,7 @@ void sram_loop() {
 	}
 
 	if (picture_number != prev_picture_number) {
+		MENU_BEEP
 		lcd_fill(16, 64, 32, 16, COLOR_BLACK);		// Erase previous picture number
 
 		c = picture_number + 1;
@@ -143,12 +149,14 @@ void sram_loop() {
 	}
 
 	if (cursor != cursor_prev) {
+		MENU_BEEP
 		lcd_fill(16, 220 + (cursor_prev * 24), 16, 16, COLOR_BLACK);
 		lcd_print(16, 220 + (cursor * 24), "#", COLOR_WHITE, 1);
 		cursor_prev = cursor;
 	}
 
 	if (palette_number != prev_palette_number) {
+		MENU_BEEP
 		lcd_print(32+128, 220+24+24, palettes_list[palette_number]->name, COLOR_YELLOW, 1);
 		prev_palette_number = palette_number;
 		lcd_preview(56, 96);

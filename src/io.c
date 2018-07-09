@@ -44,7 +44,7 @@ void init_io(void) {
 	LPC_IOCON->ARM_SWDIO_PIO1_3 = 0x81;		// Func: PIO
 	LPC_IOCON->PIO1_4 = 0x80;				// Func: PIO (Unused)
 	LPC_IOCON->PIO1_5 = 0;					// Func: PIO
-	LPC_IOCON->PIO1_6 = 0;	//0x02;				// Func: CT32B0_MAT0 (PWM audio out)
+	LPC_IOCON->PIO1_6 = 0;					// Func: PIO (PWM audio out disabled)
 	LPC_IOCON->PIO1_7 = 0x01;				// Func: TXD (Unused)
 	LPC_IOCON->PIO1_8 = 0;					// Func: PIO
 	LPC_IOCON->PIO1_9 = 0x01;				// Func: CT16B1_MAT0 (GB Phi)

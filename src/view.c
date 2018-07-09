@@ -180,10 +180,12 @@ void view_loop() {
 				state = STATE_START;
 			if (state == STATE_PLAY)
 				state = STATE_STOP;
+			VALIDATE_BEEP
 		}
 	}
 	if ((inputs_active & BTN_LEFT) && (state == STATE_IDLE)) {
 	    NVIC->ICER[1] |= (1<<11);		// Disable timer interrupt
+		VALIDATE_BEEP
 		fade_out(menu_view);
 		return;
 	}
@@ -204,6 +206,7 @@ void view_loop() {
 		lcd_fill(24, 216 + (cursor_prev * 8), 8, 8, COLOR_BLACK);
 		lcd_print(24, 216 + (cursor * 8), "#", COLOR_WHITE, 0);
 		cursor_prev = cursor;
+		MENU_BEEP
 	}
 
 	if (state == STATE_START) {

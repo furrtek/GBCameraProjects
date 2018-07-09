@@ -19,6 +19,9 @@
 
 #define MAX_AUDIO_BUFFERS 5
 
+#define MENU_BEEP beep(400, 2, 40);
+#define VALIDATE_BEEP beep(800, 2, 40);
+
 // Button bit masks
 #define BTN_UP 1
 #define BTN_DOWN 8
@@ -40,6 +43,8 @@ struct {
 	uint32_t duration;
 } file_list[8];
 
+void hex_insert(uint32_t pos, uint8_t d);
+void beep(const uint32_t frequency, const uint32_t duration, const uint32_t volume);
 void print_error(uint8_t x, uint8_t y, uint8_t fr);
 void systick_wait(const uint32_t duration);
 
@@ -55,7 +60,7 @@ char str_buffer[32];				// For lcd_print with dynamic data
 uint16_t backlight;					// For fade in/out
 int8_t cursor, cursor_prev, cursor_max;	// For menus
 uint8_t refresh_req;
-uint8_t picture_number, prev_picture_number;
+uint32_t picture_number, prev_picture_number;
 
 // Timing/inputs
 volatile uint32_t systick;			// Used for 10ms timing
