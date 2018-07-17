@@ -33,7 +33,7 @@ volatile enum state_t {
 #define EXPO_BRIGHT		2
 
 #define	MAX_EXPOSURE 1000		// ((acqtime/953.6)-32446)/16
-#define	MIN_EXPOSURE 40
+#define	MIN_EXPOSURE 10
 
 void set_palette();
 
