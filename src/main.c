@@ -23,7 +23,6 @@
 #include "icons.h"
 
 // BUGS:
-// Can only record once. Have to power cycle to be able to record again.
 // Viewer allows selecting files when there are no files :(
 // Auto-exposure oscillates
 

@@ -102,7 +102,7 @@ void capture_view() {
 
     gbcam_setmatrix();
 
-    exposure = MAX_EXPOSURE / 2;
+    exposure = MAX_EXPOSURE / 16;	//2;
     gbcam_setexposure(exposure);
 
     // Clear GB Cam scratchpad RAM (bank 0, A000~AFFF)
@@ -113,7 +113,7 @@ void capture_view() {
 
     update_gain();
     cart_put(0xA004, 0x46);		// Edge enhance 200%
-    cart_put(0xA005, 0x9F);		// Dark level calibration 9F TESTING
+    cart_put(0xA005, 0xCF);		// Dark level calibration 9F TESTING
 
 	prev_expo_status = EXPO_INRANGE;
     cursor_prev = 1;
@@ -213,7 +213,7 @@ void capture_loop() {
 	luma_delta = (21504 - luma_acc) >> 9;
 
 	// Cap exposure and alert
-	if ((int32_t)exposure + luma_delta > MAX_EXPOSURE) {
+	/*if ((int32_t)exposure + luma_delta > MAX_EXPOSURE) {
 		expo_status = EXPO_DARK;
 		exposure = MAX_EXPOSURE;
 	} else if ((int32_t)exposure + luma_delta < MIN_EXPOSURE) {
@@ -222,7 +222,7 @@ void capture_loop() {
 	} else {
 		expo_status = EXPO_INRANGE;
 		exposure += luma_delta;
-	}
+	}*/
 
 	// Display exposure bar
 	c = 76 + ((exposure - MIN_EXPOSURE) >> 3);
@@ -248,7 +248,7 @@ void capture_loop() {
 	// Ideally max-min should be == 0, meaning there's an even distribution of all pixel values
 	histogram_shape = (histogram[0] + histogram[3]) - (histogram[1] + histogram[2]);	// (Blacks + whites) - (greys)
 	if (histogram_shape > 2000) {
-		if (gain > (3 << 4)) {
+		if (gain > 1) {	// (1 << 4)
 			gain--;
 			update_gain();
 		}
