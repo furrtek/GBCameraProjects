@@ -14,9 +14,13 @@
 #include "stm32f7xx.h"
 #include "stm32f7xx_ll_gpio.h"
 
+#define VERSION_STR "1.0"
+
 #define ERROR_THRESHOLD 3
-#define SPECIAL_VALUE_DFU 1337
+
+#define SPECIAL_VALUE_VERSION 123
 #define SPECIAL_VALUE_DEBUG 999
+#define SPECIAL_VALUE_DFU 1337
 
 #define ADDR_SYSMEM (uint32_t)0x00100000	// RM0431 page 56
 
@@ -44,6 +48,8 @@ extern volatile uint8_t flag_update_matrix;
 extern volatile uint8_t flag_update_exposure;
 extern TIM_HandleTypeDef s_Timer12;
 extern uint32_t OSD_timer;
+extern uint32_t error_acc;
+extern int16_t final_exposure;
 
 extern volatile uint8_t debug_val;
 

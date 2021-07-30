@@ -16,6 +16,8 @@ volatile uint8_t debug_val;
 TIM_HandleTypeDef s_Timer12;
 int32_t ae_last_error;
 uint32_t OSD_timer = 0;
+uint32_t error_acc;
+int16_t final_exposure;
 
 void blank_buffer(uint8_t* buffer) {
 	for (uint32_t c = 0; c < GB_FRAME_SIZE; c++)
@@ -23,8 +25,7 @@ void blank_buffer(uint8_t* buffer) {
 }
 
 int main(void) {
-	uint32_t c, error_flag, error_acc;
-	int16_t exposure;
+	uint32_t c, error_flag;
 	uint8_t gbcam_present = 0;
 	uint32_t luma_hist[4];
 	uint32_t luma_acc = 0;
@@ -34,7 +35,7 @@ int main(void) {
 	settings.auto_exposure = 1;
 	settings.exposure = 50;
 	settings.hue = 0;
-	settings.brightness= 30;
+	settings.brightness = 70;
 	settings.contrast = 10;
 	settings.gain = 5;
 	settings.debug = 0;
@@ -50,7 +51,7 @@ int main(void) {
 	// For delays
 	__TIM2_CLK_ENABLE();
 	s_TimerInstance.Instance = TIM2;
-	s_TimerInstance.Init.Prescaler = 96;
+	s_TimerInstance.Init.Prescaler = 120;
 	s_TimerInstance.Init.CounterMode = TIM_COUNTERMODE_UP;
 	s_TimerInstance.Init.Period = 100000;
 	s_TimerInstance.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -63,7 +64,7 @@ int main(void) {
 	s_Timer12.Instance = TIM12;
 	s_Timer12.Init.Prescaler = 1;
 	s_Timer12.Init.CounterMode = TIM_COUNTERMODE_UP;
-	s_Timer12.Init.Period = 24-1;	// 96M/24/2/2=1M
+	s_Timer12.Init.Period = 30-1;	// 120M/30/2/2=1M
 	s_Timer12.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
 	s_Timer12.Init.RepetitionCounter = 0;
 	s_Timer12.Channel = HAL_TIM_ACTIVE_CHANNEL_1;
@@ -87,7 +88,7 @@ int main(void) {
 	OSD_write_nocam(linear_buffer_b);
 
     error_acc = 0;
-    exposure = 2080;
+    final_exposure = 2080;
 
 	LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_14);	// Red LED
 	LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_15);
@@ -117,7 +118,7 @@ int main(void) {
 			if (gbcam_present) {
 				if (flag_update_matrix) {
 					gbcam_setgain(settings.gain);
-					gbcam_setmatrix(settings.contrast, settings.brightness);
+					gbcam_setmatrix(20 - settings.contrast, 200 - settings.brightness);
 				}
 
 				if (new_frame_trigger) {
@@ -140,15 +141,15 @@ int main(void) {
 						int32_t ae_rate = ae_error - ae_last_error;
 						ae_last_error = ae_error;
 
-						exposure += (ae_error / 16 + ae_rate / 32);
+						final_exposure += (ae_error / 16 + ae_rate / 32);
 
-						if (exposure < 32) {
-							exposure = 32;
-						} else if (exposure > 3000) {
-							exposure = 3000;
+						if (final_exposure < 32) {
+							final_exposure = 32;
+						} else if (final_exposure > 3000) {
+							final_exposure = 3000;
 						}
 
-						gbcam_setexposure(exposure);
+						gbcam_setexposure(final_exposure);
 					} else {
 						// Manual setting
 						if (flag_update_exposure) {
@@ -156,8 +157,6 @@ int main(void) {
 							flag_update_exposure = 0;
 						}
 					}
-
-					//cart_put(0xA005, 0x80 | 0x00 | 0x10);		// Max level calibration, useless ?
 
 					// Read scratchpad to raw_buffer
 					cart_put(0x4000, 0x00);	// SRAM bank 0
@@ -233,18 +232,8 @@ int main(void) {
 							gbcam_present = 0;
 					}
 
-					if (settings.debug == SPECIAL_VALUE_DFU)
-						OSD_write(2, 2, linear_buffer_wr, "DFU!");
-
-					if (settings.debug == SPECIAL_VALUE_DEBUG) {
-						OSD_write_value(2, 2, linear_buffer_wr, 'E', error_acc, 1);
-						OSD_write_value(40, 2, linear_buffer_wr, 'P', settings.hue, 1);
-						OSD_write_value(2, 20, linear_buffer_wr, 'X', exposure, 3);
-						OSD_write_value(2, 48, linear_buffer_wr, 'B', settings.brightness, 2);
-						OSD_write_value(2, 68, linear_buffer_wr, 'C', settings.contrast, 2);
-						OSD_write_value(2, 88, linear_buffer_wr, 'G', settings.gain, 1);
-					} else {
-						if (OSD_timer) {
+					if (!OSD_write_special(linear_buffer_wr)) {
+						if (OSD_timer) {	// Only show palette name if nothing special to show
 							OSD_write(2, 2, linear_buffer_wr, (char*)palettes[settings.hue & 7].name);
 							OSD_timer--;
 						}
@@ -258,7 +247,8 @@ int main(void) {
 					uint8_t * linear_buffer_wr = buffer_flip ? linear_buffer_b : linear_buffer_a;
 
 					blank_buffer(linear_buffer_wr);
-					OSD_write_nocam(linear_buffer_wr);
+					if (!OSD_write_special(linear_buffer_wr))
+						OSD_write_nocam(linear_buffer_wr);	// Only show message if nothing special to show
 
 					new_frame_trigger = 0;
 				}

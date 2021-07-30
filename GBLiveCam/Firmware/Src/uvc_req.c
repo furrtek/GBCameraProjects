@@ -151,7 +151,7 @@ void UVC_REQ_PU(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req) {
 				USBD_CtlSendData(pdev, (uint8_t*)&temp, req->wLength);
 				break;
 			case GET_DEF:
-				temp = 30;
+				temp = 70;
 				USBD_CtlSendData(pdev, (uint8_t*)&temp, req->wLength);
 				break;
 			case SET_CUR:
@@ -176,7 +176,7 @@ void UVC_REQ_PU(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req) {
 				USBD_CtlSendData(pdev, (uint8_t*)&temp, req->wLength);
 				break;
 			case GET_MAX:
-				temp = 30;
+				temp = 20;
 				USBD_CtlSendData(pdev, (uint8_t*)&temp, req->wLength);
 				break;
 			case GET_RES:

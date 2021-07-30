@@ -66,6 +66,10 @@ static void wait_short() {
 	asm("nop");
 	asm("nop");
 	asm("nop");
+	asm("nop");
+	asm("nop");
+	asm("nop");
+	asm("nop");
 }
 
 void gbcam_init() {
@@ -79,8 +83,7 @@ void gbcam_init() {
     	cart_put(c, 0x00);
 
     gbcam_setgain(5);
-    cart_put(0xA004, 0x45);		// Edge enhance 100%, Vref=0.0V
-    //cart_put(0xA005, 0x3F | 0x00 | 0x00);		// Max level calibration, useless ?
+    cart_put(0xA004, 0x45);		// Edge enhance 100%
 }
 
 uint8_t gbcam_wait_busy() {

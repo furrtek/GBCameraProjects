@@ -58,9 +58,9 @@ void SystemClock_Config(void) {
 	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
 	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
 	RCC_OscInitStruct.PLL.PLLM = 4;
-	RCC_OscInitStruct.PLL.PLLN = 96;
-	RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;	// 8M/4*96/2=96M SYSCLK
-	RCC_OscInitStruct.PLL.PLLQ = 4;
+	RCC_OscInitStruct.PLL.PLLN = 120;			// 8/4*120=240MHz PLL output
+	RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;	// 240/2=120MHz SYSCLK
+	RCC_OscInitStruct.PLL.PLLQ = 5;				// 240/5=48MHz USB clock
 	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
 		Error_Handler();
 

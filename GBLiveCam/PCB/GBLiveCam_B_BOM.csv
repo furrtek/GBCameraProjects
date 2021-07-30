@@ -1,0 +1,21 @@
+Category,Quantity,References,Value,PCB Package,Stock Code,Notes
+Capacitors,3,"C1-C2,C4",47uF,TANT-C,TAJC476K016SNJ,47u 16V tantalum
+Capacitors,4,"C3,C5-C7",100nF,1206,,100n 10V MLCC
+Capacitors,1,C8,4.7uF,1206,C1206C473K5RAC7867,4.7u 5V MLCC
+Capacitors,1,C9,10nF,1206,C1206C103K5RAC,DNP
+Resistors,2,R1-R2,10k,1206,,
+Resistors,1,R3,150,1206,,
+Resistors,1,R5,2.2k,1206,,DNP
+Integrated Circuits,1,U1,1117,SOT223-3,LDL1117S33R,3.3V LDO
+Integrated Circuits,1,U2,STM32F730R8T6,QFP50P1200X1200X160-64,STM32F730R8T6,
+Integrated Circuits,1,U3,74LVC16373,SOP50P810X110-48,74LVC16373ADGG,
+Integrated Circuits,1,U4,MAX9813,SOT23-8,MAX9813LEKA+T,DNP
+Diodes,1,D1,WP937EGW,LED,WP937EGW,3mm red/green LED
+Miscellaneous,5,"AI,AO,G,H,P",PIN,TESTPAD,,
+Miscellaneous,1,B0,SJUMPER2,SOLDERJUMPER,,Bridge for programming
+Miscellaneous,1,GBCAM,GBCONN,GBCONN_MICRO_NH,,Replacement NDS GBA cart connector
+Miscellaneous,1,L,PIN,testpad,,
+Miscellaneous,1,MIC,CONN-SIL2,CONN-SIL2,,DNP
+Miscellaneous,1,RN1,RX8,RESCAV80P160X640X70-16,CN1J8TTE101J,Octo isolated resistor array
+Miscellaneous,1,USB,47590-0001,USBMICRO,,
+Miscellaneous,1,X1,RESONATOR,CSTNE,CSTNE8M00G550000R0,8MHz resonator

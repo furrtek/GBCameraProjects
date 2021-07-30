@@ -68,7 +68,7 @@ static const uint8_t osd_font[16*4*18] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,    //
 };
 
-static char ascii2hex(uint32_t v) {
+static char asciihex(uint32_t v) {
 	uint32_t b = v & 15;
 
 	if (b > 9)
@@ -83,7 +83,7 @@ void OSD_write_value(const uint8_t px, const uint8_t py, uint8_t* buffer, const 
 
 	str_buf[0] = letter;
 	for (c = 0; c < digits; c++) {
-		str_buf[digits - c] = ascii2hex(value);
+		str_buf[digits - c] = asciihex(value);
 		value >>= 4;
 	}
 	OSD_write(px, py, buffer, str_buf);
@@ -133,4 +133,40 @@ void OSD_write_nocam(uint8_t* buffer) {
 			buffer[2568 + x + (y << 5)] = (x >> 2) * 0x55;
 		}
 	}
+}
+
+// Returns 1 if a special message was displayed, 0 if not
+uint8_t OSD_write_special(uint8_t* buffer) {
+	uint8_t return_val = 1;
+
+	if (settings.debug == SPECIAL_VALUE_VERSION) {
+		uint32_t longword;
+		char txt_buf[9] = { 0 };
+
+		OSD_write(2, 2, buffer, "GBLIVECAM");
+		OSD_write(2, 2+16, buffer, "V" VERSION_STR);
+
+		// Show 12-byte MCU serial number
+		for (uint32_t lw = 0; lw < 3; lw++) {
+			longword = *(uint32_t*)(UID_BASE + (lw << 2));	// Load new longword
+			for (uint32_t digit = 0; digit < 8; digit++) {
+				txt_buf[digit] = asciihex(longword >> 28);
+				longword <<= 4;	// Next digit
+			}
+			OSD_write(2, 48 + (lw << 4), buffer, txt_buf);
+		}
+	} else if (settings.debug == SPECIAL_VALUE_DFU) {
+		OSD_write(2, 2, buffer, "DFU!");
+	} else if (settings.debug == SPECIAL_VALUE_DEBUG) {
+		OSD_write_value(2, 2, buffer, 'E', error_acc, 1);
+		OSD_write_value(40, 2, buffer, 'P', settings.hue, 1);
+		OSD_write_value(2, 20, buffer, 'X', final_exposure, 3);
+		OSD_write_value(2, 48, buffer, 'B', settings.brightness, 2);
+		OSD_write_value(2, 68, buffer, 'C', settings.contrast, 2);
+		OSD_write_value(2, 88, buffer, 'G', settings.gain, 1);
+	} else {
+		return_val = 0;
+	}
+
+	return return_val;
 }

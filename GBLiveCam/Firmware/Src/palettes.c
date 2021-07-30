@@ -43,11 +43,11 @@ const palette_t palettes[8] = {
 		{ RGB2YUV(0xE3D18A) }
 	}, "PAPER"},
 	{{
-		{ RGB2YUV(0x2A2020) },
-		{ RGB2YUV(0xCF7500) },
-		{ RGB2YUV(0xF0BA00) },
-		{ RGB2YUV(0xF4F4F4) }
-	}, "GOLD"},
+		{ RGB2YUV(0x000000) },
+		{ RGB2YUV(0x3E432E) },
+		{ RGB2YUV(0x616F39) },
+		{ RGB2YUV(0xA7D129) }
+	}, "PINE"},
 	{{
 		{ RGB2YUV(0x3A0088) },
 		{ RGB2YUV(0x930077) },

@@ -2,7 +2,7 @@
 #define __GBCAM_H
 
 #define GB_FRAME_SIZE 	3584		// 128 * 112 * 2bpp / 8 bits
-#define GBC_TIMEOUT		40000		// CPU speed dependent !
+#define GBC_TIMEOUT		50000		// CPU speed dependent !
 
 #define GBCCS_LOW		GPIOA->BSRR = (LL_GPIO_PIN_5 << 16);
 #define GBCCS_HIGH		GPIOA->BSRR = LL_GPIO_PIN_5;
