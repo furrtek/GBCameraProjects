@@ -1,0 +1,34 @@
+/* THIS FILE WILL BE OVERWRITTEN BY DEV-C++ */
+/* DO NOT EDIT! */
+
+#include <windows.h> // include for version info constants
+
+
+//
+// TO CHANGE VERSION INFORMATION, EDIT PROJECT OPTIONS...
+//
+1 VERSIONINFO
+FILEVERSION 0,1,0,0
+PRODUCTVERSION 0,1,0,0
+FILETYPE VFT_APP
+{
+  BLOCK "StringFileInfo"
+  {
+    BLOCK "040904E4"
+    {
+      VALUE "CompanyName", "Furrtek.org"
+      VALUE "FileVersion", "0.1.0.0"
+      VALUE "FileDescription", "GBCamcorder video converter"
+      VALUE "InternalName", ""
+      VALUE "LegalCopyright", ""
+      VALUE "LegalTrademarks", ""
+      VALUE "OriginalFilename", ""
+      VALUE "ProductName", ""
+      VALUE "ProductVersion", "0.1.0.0"
+    }
+  }
+  BLOCK "VarFileInfo"
+  {
+    VALUE "Translation", 0x0409, 1252
+  }
+}
