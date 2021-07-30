@@ -1,7 +1,11 @@
 # GBLiveCam
 
+![GBLiveCam in use](photo.jpg)
+
 GBLiveCam is an adapter which turns a Game Boy Camera (or Pocket Camera) cartridge into an USB webcam.
 No screwdrivers and destruction required: just plug and stream !
+
+![GIF video example](video.gif)
 
 Video resolution is 256*224 pixels (original 128*112 picture scaled x2) to cancel out the chroma sub-sampling of the NV12 (YUV420) format. Frame rate is fixed 8 fps. No audio.
 
