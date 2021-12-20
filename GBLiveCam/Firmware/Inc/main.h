@@ -14,7 +14,13 @@
 #include "stm32f7xx.h"
 #include "stm32f7xx_ll_gpio.h"
 
-#define VERSION_STR "1.0"
+#define PCBREV 'C'
+
+#if PCBREV == 'B'
+#define VERSION_STR "1.0B"
+#else
+#define VERSION_STR "1.0C"
+#endif
 
 #define ERROR_THRESHOLD 3
 
@@ -46,7 +52,7 @@ volatile struct {
 extern volatile uint8_t new_frame_trigger;
 extern volatile uint8_t flag_update_matrix;
 extern volatile uint8_t flag_update_exposure;
-extern TIM_HandleTypeDef s_Timer12;
+extern TIM_HandleTypeDef s_PhiTimer;
 extern uint32_t OSD_timer;
 extern uint32_t error_acc;
 extern int16_t final_exposure;

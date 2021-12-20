@@ -23,6 +23,10 @@ Video resolution is 256 * 224 pixels (original 128 * 112 picture scaled x2) to c
 * Slide the main PCB in one of the aluminum enclosure's rails to see where the USB connector hole should be made. Remove the PCB and drill a 10~14mm hole, or mill a rectangular one.
 * Place and screw a plate PCB on one end of the enclosure, slide the main PCB in (the right way around), place and screw the other end's plate.
 
+# Firmware
+
+If using PCB revision B, change the `#define PCBREV 'C'` line in main.h to `#define PCBREV 'B'`.
+
 # How to use
 
 * Stick a `Game Boy Camera` or `Pocket Camera` cartridge in the cart slot.

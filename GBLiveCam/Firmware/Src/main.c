@@ -1,3 +1,13 @@
+// GBLiveCam firmware for STM32F730R8T6
+// furrtek 2019 - See LICENSE
+
+// Changes from PCB rev. B:
+// No more bus demux, direct data and address
+// ALEL and ALEH are gone
+// /GBCWR on PA8 instead of PA7
+// GBCPHI on PA7 instead of PB14
+// Address bus on port B
+
 #include "main.h"
 #include "usb_device.h"
 #include "init.h"
@@ -13,7 +23,7 @@ volatile uint8_t new_frame_trigger = 0;
 volatile uint8_t flag_update_exposure, flag_update_matrix;
 volatile uint32_t buffer_flip = 0;
 volatile uint8_t debug_val;
-TIM_HandleTypeDef s_Timer12;
+TIM_HandleTypeDef s_PhiTimer;
 int32_t ae_last_error;
 uint32_t OSD_timer = 0;
 uint32_t error_acc;
@@ -30,6 +40,7 @@ int main(void) {
 	uint32_t luma_hist[4];
 	uint32_t luma_acc = 0;
 	uint32_t luma_idx = 0;
+	TIM_OC_InitTypeDef TIM_OCStruct;
 
 	cam_status = STATUS_STOPPED;
 	settings.auto_exposure = 1;
@@ -60,25 +71,33 @@ int main(void) {
 	HAL_TIM_Base_Start(&s_TimerInstance);
 
 	// GB Phi generator
+	s_PhiTimer.Init.Prescaler = 1;
+	s_PhiTimer.Init.CounterMode = TIM_COUNTERMODE_UP;
+	s_PhiTimer.Init.Period = 30-1;	// 120M/30/2/2=1M
+	s_PhiTimer.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+	s_PhiTimer.Init.RepetitionCounter = 0;
+	s_PhiTimer.Channel = HAL_TIM_ACTIVE_CHANNEL_1;
+	TIM_OCStruct.OCMode = TIM_OCMODE_TOGGLE;
+	TIM_OCStruct.Pulse = 0;
+#if PCBREV == 'B'
 	__TIM12_CLK_ENABLE();
-	s_Timer12.Instance = TIM12;
-	s_Timer12.Init.Prescaler = 1;
-	s_Timer12.Init.CounterMode = TIM_COUNTERMODE_UP;
-	s_Timer12.Init.Period = 30-1;	// 120M/30/2/2=1M
-	s_Timer12.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-	s_Timer12.Init.RepetitionCounter = 0;
-	s_Timer12.Channel = HAL_TIM_ACTIVE_CHANNEL_1;
+	s_PhiTimer.Instance = TIM12;
 	TIM12->CR1 = TIM_COUNTERMODE_UP | TIM_CLOCKDIVISION_DIV1;
 	TIM12->ARR = (uint32_t)12-1;
 	TIM12->PSC = 1;
 	TIM12->EGR = TIM_EGR_UG;
+#else
+	__TIM14_CLK_ENABLE();
+	s_PhiTimer.Instance = TIM14;
+	TIM14->CR1 = TIM_COUNTERMODE_UP | TIM_CLOCKDIVISION_DIV1;
+	TIM14->ARR = (uint32_t)12-1;
+	TIM14->PSC = 1;
+	TIM14->EGR = TIM_EGR_UG;
+#endif
 
-	TIM_OC_InitTypeDef TIM_OCStruct;
-	TIM_OCStruct.OCMode = TIM_OCMODE_TOGGLE;
-	TIM_OCStruct.Pulse = 0;
-	HAL_TIM_OC_ConfigChannel(&s_Timer12, &TIM_OCStruct, TIM_CHANNEL_1);
+	HAL_TIM_OC_ConfigChannel(&s_PhiTimer, &TIM_OCStruct, TIM_CHANNEL_1);
 	//HAL_TIM_OC_Start(&s_Timer9, TIM_CHANNEL_1);
-	HAL_TIM_OC_Start(&s_Timer12, TIM_CHANNEL_1);
+	HAL_TIM_OC_Start(&s_PhiTimer, TIM_CHANNEL_1);
 	// GBCam doesn't like Phi with no sync: ROM reads are corrupt
 	// No Phi means no RAM access though
 

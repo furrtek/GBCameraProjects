@@ -71,7 +71,7 @@ void SystemClock_Config(void) {
 	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
 	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)	// FLASH_LATENCY_3 ?
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
 		Error_Handler();
 	PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_CLK48;
 	PeriphClkInitStruct.Clk48ClockSelection = RCC_CLK48SOURCE_PLL;
@@ -88,35 +88,55 @@ void MX_GPIO_Init(void) {
 	LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOB);
 	LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOC);
 
-	LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_5);
-	LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_6);
-	LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_7);
-	LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_8);
-	LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_14);
-	LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_15);
+	LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_5);		// /GBCCS
+	LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_6);		// /GBCRD
+	LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_14);	// LED1
+	LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_15);	// LED2
+	LL_GPIO_SetOutputPin(GPIOC, LL_GPIO_PIN_3);		// /GBCRST
 
-	LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_14);
-
-	LL_GPIO_ResetOutputPin(GPIOC, LL_GPIO_PIN_0);
-	LL_GPIO_SetOutputPin(GPIOC, LL_GPIO_PIN_3);
+#if PCBREV == 'B'
+	LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_7);		// /GBCWR
+	LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_8);	// ALEL
+	LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_14);	// GBCPHI
+	LL_GPIO_ResetOutputPin(GPIOC, LL_GPIO_PIN_0);	// ALEH
+#else
+	LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_8);		// /GBCWR
+	LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_7);	// GBCPHI
+#endif
 
 	// GB cart Phi
-	GPIO_InitStruct.Pin = LL_GPIO_PIN_14;
 	GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
 	GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;	// LL_GPIO_SPEED_FREQ_VERY_HIGH ?
 	GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
 	GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+#if PCBREV == 'B'
+	// PB14: TIM12_CH1
+	GPIO_InitStruct.Pin = LL_GPIO_PIN_14;
 	GPIO_InitStruct.Alternate = LL_GPIO_AF_9;	// TIM12_CH1
 	LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+#else
+	// PA7: TIM14_CH1
+	GPIO_InitStruct.Pin = LL_GPIO_PIN_7;
+	GPIO_InitStruct.Alternate = LL_GPIO_AF_9;	// TIM14_CH1
+	LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+#endif
 
 	// GB cart control
+#if PCBREV == 'B'
 	GPIO_InitStruct.Pin = LL_GPIO_PIN_5 | LL_GPIO_PIN_6 | LL_GPIO_PIN_7 | LL_GPIO_PIN_8;
+#else
+	GPIO_InitStruct.Pin = LL_GPIO_PIN_5 | LL_GPIO_PIN_6 | LL_GPIO_PIN_8;
+#endif
 	GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
 	GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;	// LL_GPIO_SPEED_FREQ_VERY_HIGH ?
 	GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
 	GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
 	LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+#if PCBREV == 'B'
 	GPIO_InitStruct.Pin = LL_GPIO_PIN_0 | LL_GPIO_PIN_3;
+#else
+	GPIO_InitStruct.Pin = LL_GPIO_PIN_3;
+#endif
 	LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
 	// LEDs
@@ -127,7 +147,7 @@ void MX_GPIO_Init(void) {
 	GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
 	LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-	// Bus
+	// Data / Multiplexed bus
 	GPIO_InitStruct.Pin = LL_GPIO_PIN_8 | LL_GPIO_PIN_9 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 |
 							LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15;
 	GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
@@ -135,4 +155,17 @@ void MX_GPIO_Init(void) {
 	GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
 	GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
 	LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+#if PCBREV != 'B'
+	// Address bus
+	GPIO_InitStruct.Pin = LL_GPIO_PIN_0 | LL_GPIO_PIN_1 | LL_GPIO_PIN_2 | LL_GPIO_PIN_3 |
+							LL_GPIO_PIN_4 | LL_GPIO_PIN_5 | LL_GPIO_PIN_6 | LL_GPIO_PIN_7 |
+							LL_GPIO_PIN_8 | LL_GPIO_PIN_9 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 |
+							LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15;
+	GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+	GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;	// LL_GPIO_SPEED_FREQ_VERY_HIGH ?
+	GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+	GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+	LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+#endif
 }

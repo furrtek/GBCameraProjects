@@ -113,6 +113,7 @@ uint8_t gbcam_wait_idle() {
 }
 
 void cart_set_address(const uint16_t address) {
+#if PCBREV == 'B'
 	ALEL_HIGH
 	ALEH_HIGH
 	GBCCS_HIGH
@@ -130,6 +131,14 @@ void cart_set_address(const uint16_t address) {
 	GBBUS_SET(address >> 8)
 	wait_short();
 	ALEH_LOW
+#else
+	GBCCS_HIGH
+	GBCRD_HIGH
+	GBCWR_HIGH
+
+	GPIOB->ODR = address;
+	wait_short();
+#endif
 }
 
 uint8_t cart_get_ram(const uint16_t address) {
@@ -207,9 +216,14 @@ uint32_t gbcam_detect() {
 	const char name_ex[14] = "GAMEBOYCAMERA";
 
 	// Disable Phi generation and set it low
-	HAL_TIM_OC_Stop(&s_Timer12, TIM_CHANNEL_1);
+	HAL_TIM_OC_Stop(&s_PhiTimer, TIM_CHANNEL_1);
+#if PCBREV == 'B'
 	LL_GPIO_SetPinMode(GPIOB, LL_GPIO_PIN_14, LL_GPIO_MODE_OUTPUT);
 	LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_14);
+#else
+	LL_GPIO_SetPinMode(GPIOA, LL_GPIO_PIN_7, LL_GPIO_MODE_OUTPUT);
+	LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_7);
+#endif
 
 	cart_put(0x0000, 0x0A);			// Initialize MBC, allow writing to RAM
 
@@ -226,8 +240,12 @@ uint32_t gbcam_detect() {
 	}
 
 	// Re-enable Phi generation
+#if PCBREV == 'B'
 	LL_GPIO_SetPinMode(GPIOB, LL_GPIO_PIN_14, LL_GPIO_MODE_ALTERNATE);
-	HAL_TIM_OC_Start(&s_Timer12, TIM_CHANNEL_1);
+#else
+	LL_GPIO_SetPinMode(GPIOA, LL_GPIO_PIN_7, LL_GPIO_MODE_ALTERNATE);
+#endif
+	HAL_TIM_OC_Start(&s_PhiTimer, TIM_CHANNEL_1);
 
 	// If previous test passed, check if A000 bit 0 is = 0 (idle)
 	if (!result)
